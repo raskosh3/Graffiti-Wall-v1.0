@@ -14,6 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 from fastapi.responses import RedirectResponse
+
 # И только ПОТОМ остальные импорты (если нужны)
 try:
     from database import db
@@ -24,68 +25,214 @@ except ImportError as e:
 
 @app.get("/webapp")
 async def webapp_page():
-    html_content = """
+    html_content = '''
     <!DOCTYPE html>
-    <html>
+    <html lang="ru">
     <head>
-        <title>🎨 Graffiti Wall</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🎨 Graffiti Wall</title>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            body {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            * {
                 margin: 0;
                 padding: 0;
-                font-family: Arial, sans-serif;
+                box-sizing: border-box;
+            }
+            body {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                font-family: "Segoe UI", sans-serif;
                 color: white;
                 min-height: 100vh;
+                overflow-x: hidden;
+            }
+            .header {
+                background: rgba(255,255,255,0.1);
+                backdrop-filter: blur(10px);
+                padding: 20px;
+                text-align: center;
+                border-bottom: 1px solid rgba(255,255,255,0.2);
+            }
+            .stats {
+                display: flex;
+                justify-content: center;
+                gap: 20px;
+                margin: 20px 0;
+                flex-wrap: wrap;
+            }
+            .stat {
+                background: rgba(255,255,255,0.2);
+                padding: 10px 20px;
+                border-radius: 20px;
+                backdrop-filter: blur(5px);
+            }
+            .gallery {
+                padding: 20px;
+                text-align: center;
+            }
+            .photo-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 15px;
+                padding: 20px;
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            .photo-card {
+                background: rgba(255,255,255,0.1);
+                border-radius: 15px;
+                padding: 15px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255,255,255,0.2);
+                transition: transform 0.3s;
+            }
+            .photo-card:hover {
+                transform: translateY(-5px);
+            }
+            .photo-placeholder {
+                background: #555;
+                height: 120px;
+                border-radius: 10px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                margin-bottom: 10px;
+            }
+            .loading {
                 text-align: center;
+                padding: 50px;
+                font-size: 1.2rem;
             }
-            .container {
-                background: rgba(255,255,255,0.1);
-                padding: 40px;
-                border-radius: 20px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255,255,255,0.2);
-            }
-            h1 {
-                font-size: 2.5rem;
-                margin-bottom: 20px;
-            }
-            .status {
-                background: green;
-                padding: 10px 20px;
-                border-radius: 10px;
-                margin: 20px 0;
+            .btn {
+                background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+                border: none;
+                padding: 12px 24px;
+                border-radius: 25px;
+                color: white;
+                font-weight: bold;
+                cursor: pointer;
+                margin: 10px;
             }
         </style>
     </head>
     <body>
-        <div class="container">
+        <div class="header">
             <h1>🎨 Graffiti Wall</h1>
-            <div class="status">✅ Web App успешно запущен!</div>
-            <p>Скоро здесь будет интерактивная галерея</p>
-            <p>Бот подключается...</p>
+            <p>Интерактивная галерея фотографий</p>
         </div>
+        
+        <div class="stats">
+            <div class="stat" id="total-photos">📸 Фото: 0</div>
+            <div class="stat" id="total-users">👥 Участники: 0</div>
+            <div class="stat" id="total-likes">❤️ Лайки: 0</div>
+        </div>
+        
+        <div class="gallery">
+            <button class="btn" onclick="loadGallery()">🔄 Обновить</button>
+            
+            <div class="loading" id="loading">⏳ Загружаем галерею...</div>
+            
+            <div class="photo-grid" id="photo-grid" style="display: none;">
+                <!-- Фото будут здесь -->
+            </div>
+        </div>
+
+        <script>
+            async function loadGallery() {
+                try {
+                    document.getElementById('loading').style.display = 'block';
+                    document.getElementById('photo-grid').style.display = 'none';
+                    
+                    // Загружаем статистику
+                    const statsResponse = await fetch('/api/stats');
+                    const stats = await statsResponse.json();
+                    
+                    document.getElementById('total-photos').textContent = `📸 Фото: ${stats.total_photos}`;
+                    document.getElementById('total-users').textContent = `👥 Участники: ${stats.total_users}`;
+                    document.getElementById('total-likes').textContent = `❤️ Лайки: ${stats.total_likes}`;
+                    
+                    // Загружаем фото
+                    const photosResponse = await fetch('/api/photos');
+                    const photos = await photosResponse.json();
+                    
+                    const grid = document.getElementById('photo-grid');
+                    grid.innerHTML = '';
+                    
+                    photos.forEach(photo => {
+                        const card = document.createElement('div');
+                        card.className = 'photo-card';
+                        card.innerHTML = `
+                            <div class="photo-placeholder">
+                                📸 Фото
+                            </div>
+                            <p><b>@${photo.username}</b></p>
+                            <p>❤️ ${photo.likes} лайков</p>
+                            <small>Позиция: ${photo.position_x}, ${photo.position_y}</small>
+                        `;
+                        grid.appendChild(card);
+                    });
+                    
+                    document.getElementById('loading').style.display = 'none';
+                    grid.style.display = 'grid';
+                    
+                } catch (error) {
+                    document.getElementById('loading').innerHTML = '❌ Ошибка загрузки';
+                    console.error('Error:', error);
+                }
+            }
+            
+            // Автоматическая загрузка при открытии
+            loadGallery();
+        </script>
     </body>
     </html>
-    """
+    '''
     return HTMLResponse(content=html_content)
 
-from fastapi.responses import RedirectResponse
+
 
 @app.get("/")
 async def root():
     # Редирект с главной на /webapp
     return RedirectResponse(url="/webapp")
     
+@app.get("/api/photos")
+async def get_photos():
+    try:
+        from database import db
+        photos = list(db.photos.find({}, {'_id': 0}))
+        
+        # Преобразуем ObjectId к строке
+        for photo in photos:
+            if '_id' in photo:
+                photo['_id'] = str(photo['_id'])
+                
+        return photos
+    except Exception as e:
+        print(f"API Error: {e}")
+        return []
+
+@app.get("/api/stats")
+async def get_stats():
+    try:
+        from database import db
+        total_photos = db.photos.count_documents({})
+        total_users = len(db.photos.distinct('user_id'))
+        total_likes = sum(photo.get('likes', 0) for photo in db.photos.find())
+        
+        return {
+            "total_photos": total_photos,
+            "total_users": total_users, 
+            "total_likes": total_likes
+        }
+    except:
+        return {"total_photos": 0, "total_users": 0, "total_likes": 0}
+        
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
 
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
