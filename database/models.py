@@ -1,25 +1,36 @@
-from pymongo import MongoClient
 from datetime import datetime
 import uuid
-
-client = MongoClient(Config.MONGODB_URL)
-db = client.graffiti_wall
-
+from database import db  # Импортируем из нашего модуля
 
 class Photo:
-    def __init__(self, user_id: int, username: str, image_url: str, position: dict):
+    def __init__(self, user_id: int, username: str, image_url: str, position_x: int, position_y: int):
         self.id = str(uuid.uuid4())
         self.user_id = user_id
         self.username = username
         self.image_url = image_url
-        self.position = position
+        self.position_x = position_x
+        self.position_y = position_y
         self.likes = 0
         self.liked_by = []
         self.created_at = datetime.utcnow()
 
     def save(self):
-        db.photos.insert_one(self.__dict__)
+        if db is None:
+            print("❌ DB не подключена!")
+            return False
+        try:
+            db.photos.insert_one(self.__dict__)
+            return True
+        except Exception as e:
+            print(f"❌ Ошибка сохранения фото: {e}")
+            return False
 
     @staticmethod
     def get_all():
-        return list(db.photos.find())
+        if db is None:
+            return []
+        try:
+            return list(db.photos.find())
+        except Exception as e:
+            print(f"❌ Ошибка получения фото: {e}")
+            return []
