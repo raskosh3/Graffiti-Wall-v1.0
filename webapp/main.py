@@ -138,52 +138,59 @@ async def webapp_page():
         </div>
 
         <script>
-            async function loadGallery() {
-                try {
-                    document.getElementById('loading').style.display = 'block';
-                    document.getElementById('photo-grid').style.display = 'none';
-                    
-                    // Загружаем статистику
-                    const statsResponse = await fetch('/api/stats');
-                    const stats = await statsResponse.json();
-                    
-                    document.getElementById('total-photos').textContent = `📸 Фото: ${stats.total_photos}`;
-                    document.getElementById('total-users').textContent = `👥 Участники: ${stats.total_users}`;
-                    document.getElementById('total-likes').textContent = `❤️ Лайки: ${stats.total_likes}`;
-                    
-                    // Загружаем фото
-                    const photosResponse = await fetch('/api/photos');
-                    const photos = await photosResponse.json();
-                    
-                    const grid = document.getElementById('photo-grid');
-                    grid.innerHTML = '';
-                    
-                    photos.forEach(photo => {
-                        const card = document.createElement('div');
-                        card.className = 'photo-card';
-                        card.innerHTML = `
-                            <div class="photo-placeholder">
-                                📸 Фото
-                            </div>
-                            <p><b>@${photo.username}</b></p>
-                            <p>❤️ ${photo.likes} лайков</p>
-                            <small>Позиция: ${photo.position_x}, ${photo.position_y}</small>
-                        `;
-                        grid.appendChild(card);
-                    });
-                    
-                    document.getElementById('loading').style.display = 'none';
-                    grid.style.display = 'grid';
-                    
-                } catch (error) {
-                    document.getElementById('loading').innerHTML = '❌ Ошибка загрузки';
-                    console.error('Error:', error);
-                }
+    async function loadGallery() {
+        try {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('photo-grid').style.display = 'none';
+            
+            // Загружаем статистику
+            const statsResponse = await fetch('/api/stats');
+            const stats = await statsResponse.json();
+            
+            document.getElementById('total-photos').textContent = `📸 Фото: ${stats.total_photos}`;
+            document.getElementById('total-users').textContent = `👥 Участники: ${stats.total_users}`;
+            document.getElementById('total-likes').textContent = `❤️ Лайки: ${stats.total_likes}`;
+            
+            // Загружаем фото
+            const photosResponse = await fetch('/api/photos');
+            const photos = await photosResponse.json();
+            
+            const grid = document.getElementById('photo-grid');
+            grid.innerHTML = '';
+            
+            if (photos.length === 0) {
+                grid.innerHTML = '<div style="text-align: center; padding: 40px;">🎨 Пока нет фото на стене. Будьте первым!</div>';
+            } else {
+                photos.forEach(photo => {
+                    const card = document.createElement('div');
+                    card.className = 'photo-card';
+                    card.innerHTML = `
+                        <div class="photo-placeholder">
+                            📸 Фото ${photo._id.slice(-4)}
+                        </div>
+                        <p><b>@${photo.username}</b></p>
+                        <p>❤️ ${photo.likes} лайков</p>
+                        <small>Позиция: ${photo.position_x}, ${photo.position_y}</small>
+                    `;
+                    grid.appendChild(card);
+                });
             }
             
-            // Автоматическая загрузка при открытии
-            loadGallery();
-        </script>
+            document.getElementById('loading').style.display = 'none';
+            grid.style.display = 'grid';
+            
+        } catch (error) {
+            document.getElementById('loading').innerHTML = '❌ Ошибка загрузки галереи';
+            console.error('Error:', error);
+        }
+    }
+    
+    // Автоматическая загрузка при открытии
+    loadGallery();
+    
+    // Авто-обновление каждые 10 секунд
+    setInterval(loadGallery, 10000);
+</script>
     </body>
     </html>
     '''
@@ -200,32 +207,47 @@ async def root():
 async def get_photos():
     try:
         from database import db
-        photos = list(db.photos.find({}, {'_id': 0}))
+        if db is None:
+            return []
         
-        # Преобразуем ObjectId к строке
+        # Для MongoDB
+        photos = list(db.photos.find({}))
+        
+        # Преобразуем ObjectId в строку для JSON
         for photo in photos:
-            if '_id' in photo:
-                photo['_id'] = str(photo['_id'])
-                
+            photo['_id'] = str(photo['_id'])
+            # Убедимся что все нужные поля есть
+            photo.setdefault('likes', 0)
+            photo.setdefault('liked_by', [])
+            
         return photos
     except Exception as e:
-        print(f"API Error: {e}")
+        print(f"API Photos Error: {e}")
         return []
 
 @app.get("/api/stats")
 async def get_stats():
     try:
         from database import db
+        if db is None:
+            return {"total_photos": 0, "total_users": 0, "total_likes": 0}
+        
+        # Для MongoDB
         total_photos = db.photos.count_documents({})
         total_users = len(db.photos.distinct('user_id'))
-        total_likes = sum(photo.get('likes', 0) for photo in db.photos.find())
+        
+        # Считаем общее количество лайков
+        pipeline = [{"$group": {"_id": None, "total_likes": {"$sum": "$likes"}}}]
+        result = list(db.photos.aggregate(pipeline))
+        total_likes = result[0]['total_likes'] if result else 0
         
         return {
             "total_photos": total_photos,
-            "total_users": total_users, 
+            "total_users": total_users,
             "total_likes": total_likes
         }
-    except:
+    except Exception as e:
+        print(f"API Stats Error: {e}")
         return {"total_photos": 0, "total_users": 0, "total_likes": 0}
         
 @app.get("/health")
@@ -233,6 +255,7 @@ async def health():
     return {"status": "healthy"}
 
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
