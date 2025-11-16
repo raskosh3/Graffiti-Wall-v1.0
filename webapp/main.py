@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+
 # СНАЧАЛА создаем app
 app = FastAPI(title="Graffiti Wall")
 
@@ -13,7 +13,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+from fastapi.responses import RedirectResponse
 # И только ПОТОМ остальные импорты (если нужны)
 try:
     from database import db
@@ -75,51 +75,17 @@ async def webapp_page():
     """
     return HTMLResponse(content=html_content)
 
+from fastapi.responses import RedirectResponse
+
 @app.get("/")
-async def home():
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>🎨 Graffiti Wall</title>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                margin: 0;
-                padding: 0;
-                font-family: Arial, sans-serif;
-                color: white;
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                text-align: center;
-            }
-            .container {
-                background: rgba(255,255,255,0.1);
-                padding: 40px;
-                border-radius: 20px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255,255,255,0.2);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>🎨 Graffiti Wall</h1>
-            <p>Добро пожаловать в интерактивную галерею!</p>
-            <p>Используйте Telegram бота для доступа к Web App</p>
-        </div>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+async def root():
+    # Редирект с главной на /webapp
+    return RedirectResponse(url="/webapp")
     
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
 
 print("✅ webapp/main.py загружен! App создан.")
+
 
