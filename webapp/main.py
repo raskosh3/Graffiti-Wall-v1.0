@@ -1,79 +1,86 @@
-from aiogram import Router, F
-from aiogram.types import Message, WebAppInfo
-from aiogram.filters import Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-from config import config
-from database import db
+# СНАЧАЛА создаем app
+app = FastAPI(title="Graffiti Wall")
 
-router = Router()
+# ПОТОМ middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+# И только ПОТОМ остальные импорты (если нужны)
+try:
+    from database import db
+    print("✅ MongoDB подключена!")
+except ImportError as e:
+    print(f"❌ MongoDB не подключена: {e}")
+    db = None
 
-def get_main_menu():
-    builder = InlineKeyboardBuilder()
+@app.get("/webapp")
+async def webapp_page():
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>🎨 Graffiti Wall</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                color: white;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+            }
+            .container {
+                background: rgba(255,255,255,0.1);
+                padding: 40px;
+                border-radius: 20px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255,255,255,0.2);
+            }
+            h1 {
+                font-size: 2.5rem;
+                margin-bottom: 20px;
+            }
+            .status {
+                background: green;
+                padding: 10px 20px;
+                border-radius: 10px;
+                margin: 20px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🎨 Graffiti Wall</h1>
+            <div class="status">✅ Web App успешно запущен!</div>
+            <p>Скоро здесь будет интерактивная галерея</p>
+            <p>Бот подключается...</p>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
-    builder.button(
-        text="🎨 Открыть интерактивную галерею",
-        web_app=WebAppInfo(url=f"{config.WEBAPP_URL}/webapp")
-    )
+@app.get("/")
+async def home():
+    return {"status": "success", "message": "Graffiti Wall API работает!"}
 
-    builder.button(text="📊 Статистика", callback_data="stats")
-    builder.button(text="❓ Помощь", callback_data="help")
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 
-    builder.adjust(1)  # По одной кнопке в ряд
-    return builder.as_markup()
-
-
-@router.message(Command("start"))
-async def cmd_start(message: Message):
-    # Сохраняем пользователя в базу
-    if db:
-        db.users.update_one(
-            {'user_id': message.from_user.id},
-            {'$set': {
-                'username': message.from_user.username,
-                'full_name': message.from_user.full_name,
-                'first_seen': message.date
-            }},
-            upsert=True
-        )
-
-    await message.answer(
-        "🎨 <b>Добро пожаловать в Graffiti Wall!</b>\n\n"
-        "Это интерактивная стена, где каждый может оставить свой след:\n"
-        "• 📸 Отправляй фото чтобы добавить на стену\n"
-        "• 🎨 Смотри общую галерею в Web App\n"
-        "• ❤️ Ставь лайки понравившимся работам\n\n"
-        "<i>Нажми кнопку ниже чтобы открыть галерею:</i>",
-        reply_markup=get_main_menu()
-    )
-
-
-@router.message(F.photo)
-async def handle_photo(message: Message):
-    if not db:
-        await message.answer("❌ База данных не подключена")
-        return
-
-    # Сохраняем информацию о фото
-    photo_data = {
-        'user_id': message.from_user.id,
-        'username': message.from_user.username or message.from_user.first_name,
-        'telegram_file_id': message.photo[-1].file_id,
-        'position_x': 100,  # Пока фиксированная позиция
-        'position_y': 100,
-        'likes': 0,
-        'liked_by': [],
-        'created_at': message.date
-    }
-
-    db.photos.insert_one(photo_data)
-
-    await message.answer(
-        f"✅ <b>Фото добавлено на стену!</b>\n\n"
-        f"👤 Автор: {photo_data['username']}\n"
-        f"📍 Позиция: {photo_data['position_x']}, {photo_data['position_y']}\n"
-        f"📸 Всего фото на стене: {db.photos.count_documents({})}\n\n"
-        f"<i>Открой галерею чтобы увидеть свою работу!</i>",
-        reply_markup=get_main_menu()
-    )
+print("✅ webapp/main.py загружен! App создан.")
