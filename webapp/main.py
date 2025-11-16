@@ -254,6 +254,26 @@ async def get_stats():
 async def health():
     return {"status": "healthy"}
     
+@app.get("/check-mongo")
+async def check_mongo():
+    from config import config
+    import urllib.parse
+    
+    # Скрываем пароль для безопасности
+    safe_url = config.MONGODB_URL
+    if safe_url and "@" in safe_url:
+        # Заменяем пароль на ****
+        parts = safe_url.split("@")
+        user_pass = parts[0].split("//")[1]
+        if ":" in user_pass:
+            user = user_pass.split(":")[0]
+            safe_url = safe_url.replace(user_pass, f"{user}:****")
+    
+    return {
+        "mongodb_url_safe": safe_url,
+        "url_length": len(config.MONGODB_URL)
+    }
+    
 @app.get("/debug/db")
 async def debug_db():
     try:
@@ -293,6 +313,7 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
