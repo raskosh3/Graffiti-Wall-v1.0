@@ -253,8 +253,47 @@ async def get_stats():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
-
+    
+@app.get("/debug/db")
+async def debug_db():
+    try:
+        from database import db
+        from config import config
+        
+        info = {
+            "mongodb_url_configured": bool(config.MONGODB_URL),
+            "mongodb_url_length": len(config.MONGODB_URL) if config.MONGODB_URL else 0,
+            "db_connected": db is not None,
+            "db_name": db.name if db else None
+        }
+        
+        if db:
+            # Проверяем коллекции
+            collections = db.list_collection_names()
+            info["collections"] = collections
+            
+            if "photos" in collections:
+                photos_count = db.photos.count_documents({})
+                info["photos_count"] = photos_count
+                
+                # Покажем несколько фото
+                photos = list(db.photos.find().limit(3))
+                info["sample_photos"] = [
+                    {
+                        "username": p.get("username"),
+                        "position": f"{p.get('position_x')},{p.get('position_y')}",
+                        "likes": p.get("likes", 0)
+                    }
+                    for p in photos
+                ]
+        
+        return info
+        
+    except Exception as e:
+        return {"error": str(e)}
+        
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
