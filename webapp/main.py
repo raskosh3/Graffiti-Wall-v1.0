@@ -323,7 +323,8 @@ async function loadGallery() {
 }
 
 // Функция показа модалки с фото и кнопками
-function showPhotoModal(photo, userLiked) {
+// Функция показа модалки с фото и кнопками
+async function showPhotoModal(photo, userLiked) {
     const modal = document.createElement('div');
     modal.style.cssText = `
         position: fixed;
@@ -339,8 +340,18 @@ function showPhotoModal(photo, userLiked) {
         cursor: zoom-out;
     `;
     
-    // Проверяем является ли пользователь админом (простая проверка)
-    const isAdmin = currentUser && parseInt(currentUser.id) === 1790615566;
+    // Проверяем является ли пользователь админом
+    let isAdmin = false;
+    if (currentUser) {
+        try {
+            const response = await fetch(`/api/is_admin/${currentUser.id}`);
+            const result = await response.json();
+            isAdmin = result.is_admin;
+            console.log('Admin check result:', result);
+        } catch (error) {
+            console.error('Admin check error:', error);
+        }
+    }
     
     modal.innerHTML = `
         <div style="max-width: 90vw; max-height: 90vh; position: relative;">
@@ -405,9 +416,23 @@ async function likePhoto(photoId, button) {
 
 // Функция удаления фото (для админа)
 async function deletePhoto(photoId) {
+    if (!currentUser) {
+        alert('⚠️ Необходимо открыть через Telegram бота');
+        return;
+    }
+    
     if (!confirm('🗑️ Удалить это фото?')) return;
     
     try {
+        // Сначала проверяем права еще раз
+        const adminCheck = await fetch(`/api/is_admin/${currentUser.id}`);
+        const adminResult = await adminCheck.json();
+        
+        if (!adminResult.is_admin) {
+            alert('❌ У вас нет прав для удаления фото');
+            return;
+        }
+        
         const response = await fetch('/api/delete_photo', {
             method: 'POST',
             headers: {
@@ -642,7 +667,23 @@ async def get_photos():
     except Exception as e:
         print(f"API Photos Error: {e}")
         return []
-
+        
+@app.get("/api/is_admin/{user_id}")
+async def check_admin(user_id: int):
+    from config import config
+    try:
+        # Преобразуем в int на всякий случай
+        user_id_int = int(user_id)
+        is_admin = hasattr(config, 'ADMIN_IDS') and user_id_int in config.ADMIN_IDS
+        return {
+            "is_admin": is_admin,
+            "user_id_received": user_id,
+            "user_id_processed": user_id_int,
+            "admin_ids": getattr(config, 'ADMIN_IDS', [])
+        }
+    except Exception as e:
+        return {"is_admin": False, "error": str(e)}
+        
 @app.get("/api/stats")
 async def get_stats():
     try:
@@ -825,4 +866,5 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
