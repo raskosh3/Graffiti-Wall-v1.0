@@ -44,48 +44,51 @@ async def webapp_page():
         font-family: "Segoe UI", sans-serif;
         color: white;
         overflow: hidden;
+        touch-action: none;
     }
     .header {
-        background: rgba(0,0,0,0.9);
-        padding: 10px;
-        text-align: center;
+        background: rgba(0,0,0,0.95);
+        padding: 8px 15px;
         position: fixed;
         top: 0;
         width: 100%;
         z-index: 1000;
-        backdrop-filter: blur(10px);
-        height: 80px; /* Фиксированная высота */
+        backdrop-filter: blur(15px);
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        height: auto;
+        min-height: 70px;
     }
 
-.wall-container {
-    margin-top: 80px; /* Уменьши отступ */
-    height: calc(100vh - 80px);
-}
     .stats {
         display: flex;
         justify-content: center;
-        gap: 20px;
-        margin: 10px 0;
+        gap: 15px;
+        margin: 5px 0;
         flex-wrap: wrap;
     }
+
     .stat {
-        background: rgba(255,255,255,0.1);
-        padding: 8px 16px;
-        border-radius: 15px;
-        font-size: 0.9rem;
+        background: rgba(255,255,255,0.15);
+        padding: 6px 12px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255,255,255,0.1);
     }
+
     .wall-container {
-        margin-top: 120px;
+        margin-top: 80px;
+        height: calc(100vh - 80px);
         overflow: scroll;
-        width: 100vw;
-        height: calc(100vh - 120px);
         cursor: grab;
+        -webkit-overflow-scrolling: touch;
     }
     .wall {
         position: relative;
         width: 2000px;
         height: 2000px;
         background: #2d2d2d;
+        transition: transform 0.1s ease-out;
     }
     .photo {
         position: absolute;
@@ -93,6 +96,7 @@ async def webapp_page():
         overflow: hidden;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         transition: transform 0.2s, box-shadow 0.2s;
+        touch-action: none;
     }
     .photo:hover {
         transform: scale(1.05);
@@ -103,6 +107,7 @@ async def webapp_page():
         width: 100%;
         height: 100%;
         object-fit: cover;
+        pointer-events: none;
     }
     .photo-credits {
         position: absolute;
@@ -114,21 +119,50 @@ async def webapp_page():
         border-radius: 10px;
         font-size: 0.7rem;
         backdrop-filter: blur(5px);
+        pointer-events: none;
     }
     .loading {
         text-align: center;
         padding: 50px;
         font-size: 1.2rem;
     }
-    .btn {
-        background: linear-gradient(45deg, #667eea, #764ba2);
-        border: none;
-        padding: 10px 20px;
-        border-radius: 20px;
+    
+    /* Мобильные контролы */
+    .mobile-controls {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .zoom-btn {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.8);
         color: white;
-        font-weight: bold;
+        border: 1px solid rgba(255,255,255,0.2);
+        font-size: 20px;
         cursor: pointer;
-        margin: 5px;
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+    }
+    
+    .zoom-btn:active {
+        background: rgba(255,255,255,0.2);
+    }
+    
+    /* Скрыть контролы на десктопе */
+    @media (min-width: 768px) {
+        .mobile-controls {
+            display: none;
+        }
     }
 </style>
     </head>
@@ -136,29 +170,31 @@ async def webapp_page():
         <div class="header">
             <h1>🎨 Graffiti Wall</h1>
             <p>Интерактивная галерея фотографий</p>
-        </div>
-        
-        <div class="stats">
-            <div class="stat" id="total-photos">📸 Фото: 0</div>
-            <div class="stat" id="total-users">👥 Участники: 0</div>
-            <div class="stat" id="total-likes">❤️ Лайки: 0</div>
-        </div>
-        
-       <div class="wall-container" id="wall-container">
-    <div class="wall" id="wall"></div>
-</div>
-            
-            <div class="loading" id="loading">⏳ Загружаем галерею...</div>
-            
-            <div class="photo-grid" id="photo-grid" style="display: none;">
-                <!-- Фото будут здесь -->
+            <div class="stats">
+                <div class="stat" id="total-photos">📸 Фото: 0</div>
+                <div class="stat" id="total-users">👥 Участники: 0</div>
+                <div class="stat" id="total-likes">❤️ Лайки: 0</div>
             </div>
         </div>
+        
+        <div class="wall-container" id="wall-container">
+            <div class="wall" id="wall"></div>
+        </div>
+        
+        <!-- Мобильные контролы -->
+        <div class="mobile-controls">
+            <button class="zoom-btn" onclick="zoomIn()">+</button>
+            <button class="zoom-btn" onclick="zoomOut()">-</button>
+            <button class="zoom-btn" onclick="resetZoom()" style="font-size:16px;">⟲</button>
+        </div>
+            
+        <div class="loading" id="loading">⏳ Загружаем галерею...</div>
 
         <script>
-    let wallScale = 1;
+let wallScale = 1;
 let isDragging = false;
 let startX, startY, scrollLeft, scrollTop;
+let initialDistance = null;
 
 async function loadGallery() {
     try {
@@ -190,14 +226,14 @@ async function loadGallery() {
                 photoElement.style.width = '150px';
                 photoElement.style.height = '150px';
                 
-               // РЕАЛЬНЫЕ ФОТО ИЗ MONGODB
-            photoElement.innerHTML = `
-                <img src="${photo.image_url}" 
-                     alt="Фото от @${photo.username}" 
-                     loading="lazy"
-                     style="width:100%;height:100%;object-fit:cover;border-radius:8px;">
-                <div class="photo-credits">@${photo.username}</div>
-            `;
+                // РЕАЛЬНЫЕ ФОТО ИЗ MONGODB
+                photoElement.innerHTML = `
+                    <img src="${photo.image_url}" 
+                         alt="Фото от @${photo.username}" 
+                         loading="lazy"
+                         style="width:100%;height:100%;object-fit:cover;border-radius:8px;">
+                    <div class="photo-credits">@${photo.username}</div>
+                `;
                 
                 // Добавляем зум при клике
                 photoElement.onclick = (e) => {
@@ -219,7 +255,6 @@ async function loadGallery() {
 
 // Функция зума фото
 function zoomPhoto(photo) {
-    // Создаем модальное окно для просмотра фото
     const modal = document.createElement('div');
     modal.style.cssText = `
         position: fixed;
@@ -235,18 +270,18 @@ function zoomPhoto(photo) {
         cursor: zoom-out;
     `;
     
-   modal.innerHTML = `
-    <div style="max-width: 90vw; max-height: 90vh; position: relative;">
-        <img src="${photo.image_url}" 
-             alt="Фото от @${photo.username}"
-             style="max-width: 90vw; max-height: 90vh; border-radius: 15px;">
-        <div style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 15px; border-radius: 10px;">
-            <strong>@${photo.username}</strong><br>
-            ❤️ ${photo.likes} лайков<br>
-            Позиция: ${photo.position_x}, ${photo.position_y}
+    modal.innerHTML = `
+        <div style="max-width: 90vw; max-height: 90vh; position: relative;">
+            <img src="${photo.image_url}" 
+                 alt="Фото от @${photo.username}"
+                 style="max-width: 90vw; max-height: 90vh; border-radius: 15px;">
+            <div style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 15px; border-radius: 10px;">
+                <strong>@${photo.username}</strong><br>
+                ❤️ ${photo.likes} лайков<br>
+                Позиция: ${photo.position_x}, ${photo.position_y}
+            </div>
         </div>
-    </div>
-`;
+    `;
     
     modal.onclick = () => document.body.removeChild(modal);
     document.body.appendChild(modal);
@@ -255,7 +290,9 @@ function zoomPhoto(photo) {
 // Функции для навигации по стене
 function setupWallNavigation() {
     const container = document.getElementById('wall-container');
+    const wall = document.getElementById('wall');
     
+    // Desktop события
     container.addEventListener('mousedown', (e) => {
         isDragging = true;
         startX = e.pageX - container.offsetLeft;
@@ -264,12 +301,12 @@ function setupWallNavigation() {
         scrollTop = container.scrollTop;
         container.style.cursor = 'grabbing';
     });
-    
+
     container.addEventListener('mouseup', () => {
         isDragging = false;
         container.style.cursor = 'grab';
     });
-    
+
     container.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         e.preventDefault();
@@ -280,27 +317,98 @@ function setupWallNavigation() {
         container.scrollLeft = scrollLeft - walkX;
         container.scrollTop = scrollTop - walkY;
     });
-    
+
+    // Touch события для мобильных
+    container.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            startX = e.touches[0].pageX - container.offsetLeft;
+            startY = e.touches[0].pageY - container.offsetTop;
+            scrollLeft = container.scrollLeft;
+            scrollTop = container.scrollTop;
+        } else if (e.touches.length === 2) {
+            // Pinch to zoom
+            initialDistance = getDistance(e.touches[0], e.touches[1]);
+        }
+    });
+
+    container.addEventListener('touchend', () => {
+        isDragging = false;
+        initialDistance = null;
+    });
+
+    container.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && isDragging) {
+            e.preventDefault();
+            const x = e.touches[0].pageX - container.offsetLeft;
+            const y = e.touches[0].pageY - container.offsetTop;
+            const walkX = (x - startX) * 2;
+            const walkY = (y - startY) * 2;
+            container.scrollLeft = scrollLeft - walkX;
+            container.scrollTop = scrollTop - walkY;
+        } else if (e.touches.length === 2 && initialDistance !== null) {
+            // Pinch to zoom
+            e.preventDefault();
+            const currentDistance = getDistance(e.touches[0], e.touches[1]);
+            const scaleChange = (currentDistance - initialDistance) * 0.005;
+            
+            wallScale = Math.min(Math.max(0.3, wallScale + scaleChange), 5);
+            updateWallScale();
+        }
+    });
+
     // Zoom колесиком мыши
     container.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const delta = -e.deltaY * 0.01;
-        wallScale = Math.min(Math.max(0.5, wallScale + delta), 3);
-        
-        const wall = document.getElementById('wall');
-        wall.style.transform = `scale(${wallScale})`;
-        wall.style.transformOrigin = '0 0';
+        const delta = -e.deltaY * 0.005;
+        wallScale = Math.min(Math.max(0.3, wallScale + delta), 5);
+        updateWallScale();
     });
+}
+
+function getDistance(touch1, touch2) {
+    return Math.sqrt(
+        Math.pow(touch2.pageX - touch1.pageX, 2) +
+        Math.pow(touch2.pageY - touch1.pageY, 2)
+    );
+}
+
+// Функции зума
+function zoomIn() {
+    wallScale = Math.min(wallScale + 0.3, 5);
+    updateWallScale();
+}
+
+function zoomOut() {
+    wallScale = Math.max(wallScale - 0.3, 0.3);
+    updateWallScale();
+}
+
+function resetZoom() {
+    wallScale = 1;
+    updateWallScale();
+    // Центрируем вид
+    const container = document.getElementById('wall-container');
+    container.scrollLeft = 500;
+    container.scrollTop = 500;
+}
+
+function updateWallScale() {
+    const wall = document.getElementById('wall');
+    wall.style.transform = `scale(${wallScale})`;
+    wall.style.transformOrigin = '0 0';
 }
 
 // Автоматическая загрузка при открытии
 document.addEventListener('DOMContentLoaded', function() {
     loadGallery();
     setupWallNavigation();
+    // Центрируем при загрузке
+    setTimeout(() => resetZoom(), 100);
 });
 
-// Авто-обновление каждые 10 секунд
-setInterval(loadGallery, 10000000);
+// Авто-обновление каждые 30 секунд
+setInterval(loadGallery, 3000000);
 </script>
     </body>
     </html>
@@ -384,9 +492,10 @@ async def check_mongo():
         "mongodb_url_safe": safe_url,
         "url_length": len(config.MONGODB_URL)
     }
-from fastapi import Response
 
+from fastapi import Response
 from bson import ObjectId, Binary
+
 @app.get("/api/photo/{photo_id}")
 async def get_photo(photo_id: str):
     try:
@@ -423,7 +532,7 @@ async def debug_db():
             "db_name": db.name if db else None
         }
         
-        if db:
+        if db is not None:
             # Проверяем коллекции
             collections = db.list_collection_names()
             info["collections"] = collections
@@ -449,13 +558,3 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
-
-
-
-
-
-
-
-
-
-
