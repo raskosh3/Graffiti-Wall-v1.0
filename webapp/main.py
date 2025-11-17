@@ -1,6 +1,7 @@
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from bson import ObjectId, Binary
 
 # СНАЧАЛА создаем app
 app = FastAPI(title="Graffiti Wall")
@@ -13,7 +14,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-from fastapi.responses import RedirectResponse
 
 # И только ПОТОМ остальные импорты (если нужны)
 try:
@@ -97,6 +97,7 @@ async def webapp_page():
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         transition: transform 0.2s, box-shadow 0.2s;
         touch-action: none;
+        cursor: pointer;
     }
     .photo:hover {
         transform: scale(1.05);
@@ -118,6 +119,18 @@ async def webapp_page():
         padding: 3px 8px;
         border-radius: 10px;
         font-size: 0.7rem;
+        backdrop-filter: blur(5px);
+        pointer-events: none;
+    }
+    .photo-likes {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-size: 0.6rem;
         backdrop-filter: blur(5px);
         pointer-events: none;
     }
@@ -152,16 +165,56 @@ async def webapp_page():
         align-items: center;
         justify-content: center;
         user-select: none;
+        transition: all 0.2s ease;
     }
     
     .zoom-btn:active {
         background: rgba(255,255,255,0.2);
+        transform: scale(0.95);
+    }
+    
+    /* Кнопки действий в модалке */
+    .action-buttons {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        gap: 10px;
+        z-index: 10001;
+    }
+    
+    .action-btn {
+        background: rgba(0,0,0,0.7);
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 20px;
+        cursor: pointer;
+        backdrop-filter: blur(10px);
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+    }
+    
+    .action-btn:hover {
+        background: rgba(255,255,255,0.2);
+    }
+    
+    .like-btn {
+        background: rgba(255,0,0,0.7);
+    }
+    
+    .like-btn.liked {
+        background: rgba(255,0,0,0.9);
+    }
+    
+    .delete-btn {
+        background: rgba(255,0,0,0.7);
     }
     
     /* Скрыть контролы на десктопе */
     @media (min-width: 768px) {
         .mobile-controls {
-            display: none;
+            display: flex;
         }
     }
 </style>
@@ -183,9 +236,10 @@ async def webapp_page():
         
         <!-- Мобильные контролы -->
         <div class="mobile-controls">
-            <button class="zoom-btn" onclick="zoomIn()">+</button>
-            <button class="zoom-btn" onclick="zoomOut()">-</button>
-            <button class="zoom-btn" onclick="resetZoom()" style="font-size:16px;">⟲</button>
+            <button class="zoom-btn" onclick="zoomIn()" title="Приблизить">+</button>
+            <button class="zoom-btn" onclick="zoomOut()" title="Отдалить">-</button>
+            <button class="zoom-btn" onclick="resetZoom()" title="Сбросить зум" style="font-size:16px;">⟲</button>
+            <button class="zoom-btn" onclick="showFullWall()" title="Показать всю стену" style="font-size:14px;">🏞️</button>
         </div>
             
         <div class="loading" id="loading">⏳ Загружаем галерею...</div>
@@ -195,6 +249,17 @@ let wallScale = 1;
 let isDragging = false;
 let startX, startY, scrollLeft, scrollTop;
 let initialDistance = null;
+let currentUser = null;
+
+// Получаем данные пользователя из Telegram Web App
+try {
+    if (window.Telegram && Telegram.WebApp) {
+        currentUser = Telegram.WebApp.initDataUnsafe.user;
+        console.log('User:', currentUser);
+    }
+} catch (e) {
+    console.log('Telegram Web App not available');
+}
 
 async function loadGallery() {
     try {
@@ -226,6 +291,9 @@ async function loadGallery() {
                 photoElement.style.width = '150px';
                 photoElement.style.height = '150px';
                 
+                // Проверяем лайкнул ли пользователь это фото
+                const userLiked = currentUser && photo.liked_by && photo.liked_by.includes(currentUser.id);
+                
                 // РЕАЛЬНЫЕ ФОТО ИЗ MONGODB
                 photoElement.innerHTML = `
                     <img src="${photo.image_url}" 
@@ -233,12 +301,13 @@ async function loadGallery() {
                          loading="lazy"
                          style="width:100%;height:100%;object-fit:cover;border-radius:8px;">
                     <div class="photo-credits">@${photo.username}</div>
+                    <div class="photo-likes">❤️ ${photo.likes}</div>
                 `;
                 
-                // Добавляем зум при клике
+                // Добавляем клик для открытия модалки
                 photoElement.onclick = (e) => {
                     e.stopPropagation();
-                    zoomPhoto(photo);
+                    showPhotoModal(photo, userLiked);
                 };
                 
                 wall.appendChild(photoElement);
@@ -253,8 +322,8 @@ async function loadGallery() {
     }
 }
 
-// Функция зума фото
-function zoomPhoto(photo) {
+// Функция показа модалки с фото и кнопками
+function showPhotoModal(photo, userLiked) {
     const modal = document.createElement('div');
     modal.style.cssText = `
         position: fixed;
@@ -270,11 +339,20 @@ function zoomPhoto(photo) {
         cursor: zoom-out;
     `;
     
+    // Проверяем является ли пользователь админом (простая проверка)
+    const isAdmin = currentUser && currentUser.id === 1790615566; // Твой ID
+    
     modal.innerHTML = `
         <div style="max-width: 90vw; max-height: 90vh; position: relative;">
             <img src="${photo.image_url}" 
                  alt="Фото от @${photo.username}"
                  style="max-width: 90vw; max-height: 90vh; border-radius: 15px;">
+            <div class="action-buttons">
+                <button class="action-btn like-btn ${userLiked ? 'liked' : ''}" onclick="likePhoto('${photo._id}', this)">
+                    ❤️ ${photo.likes}
+                </button>
+                ${isAdmin ? `<button class="action-btn delete-btn" onclick="deletePhoto('${photo._id}')">🗑️ Удалить</button>` : ''}
+            </div>
             <div style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 15px; border-radius: 10px;">
                 <strong>@${photo.username}</strong><br>
                 ❤️ ${photo.likes} лайков<br>
@@ -285,6 +363,98 @@ function zoomPhoto(photo) {
     
     modal.onclick = () => document.body.removeChild(modal);
     document.body.appendChild(modal);
+}
+
+// Функция лайка фото
+async function likePhoto(photoId, button) {
+    if (!currentUser) {
+        alert('⚠️ Необходимо открыть через Telegram бота для лайков');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/like', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                photo_id: photoId,
+                user_id: currentUser.id,
+                username: currentUser.username || `user_${currentUser.id}`
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Обновляем кнопку
+            button.classList.toggle('liked');
+            button.innerHTML = `❤️ ${result.new_likes}`;
+            
+            // Обновляем статистику
+            loadGallery();
+        } else {
+            alert('❌ ' + result.error);
+        }
+    } catch (error) {
+        console.error('Like error:', error);
+        alert('❌ Ошибка при лайке');
+    }
+}
+
+// Функция удаления фото (для админа)
+async function deletePhoto(photoId) {
+    if (!confirm('🗑️ Удалить это фото?')) return;
+    
+    try {
+        const response = await fetch('/api/delete_photo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                photo_id: photoId,
+                user_id: currentUser.id
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Фото удалено');
+            document.body.removeChild(document.body.lastChild); // Закрываем модалку
+            loadGallery(); // Перезагружаем галерею
+        } else {
+            alert('❌ ' + result.error);
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('❌ Ошибка при удалении');
+    }
+}
+
+// Функция показа всей стены
+function showFullWall() {
+    const container = document.getElementById('wall-container');
+    const wall = document.getElementById('wall');
+    
+    // Рассчитываем масштаб чтобы вся стена влезла в экран
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const wallWidth = 2000;
+    const wallHeight = 2000;
+    
+    const scaleX = containerWidth / wallWidth;
+    const scaleY = containerHeight / wallHeight;
+    const minScale = Math.min(scaleX, scaleY) * 0.9;
+    
+    wallScale = Math.max(minScale, 0.1);
+    updateWallScale();
+    
+    // Центрируем
+    container.scrollLeft = (wallWidth * wallScale - containerWidth) / 2;
+    container.scrollTop = (wallHeight * wallScale - containerHeight) / 2;
 }
 
 // Функции для навигации по стене
@@ -332,7 +502,6 @@ function setupWallNavigation() {
             scrollLeft = container.scrollLeft;
             scrollTop = container.scrollTop;
         } else if (e.touches.length === 2) {
-            // Pinch to zoom - запоминаем начальное расстояние
             isDragging = false;
             initialDistance = getDistance(e.touches[0], e.touches[1]);
             lastScale = wallScale;
@@ -346,7 +515,6 @@ function setupWallNavigation() {
 
     container.addEventListener('touchmove', (e) => {
         if (e.touches.length === 1 && isDragging) {
-            // Перетаскивание одним пальцем
             e.preventDefault();
             const x = e.touches[0].pageX - container.offsetLeft;
             const y = e.touches[0].pageY - container.offsetTop;
@@ -355,21 +523,19 @@ function setupWallNavigation() {
             container.scrollLeft = scrollLeft - walkX;
             container.scrollTop = scrollTop - walkY;
         } else if (e.touches.length === 2 && initialDistance !== null) {
-            // Pinch to zoom - плавный зум
             e.preventDefault();
             const currentDistance = getDistance(e.touches[0], e.touches[1]);
-            const scaleChange = (currentDistance - initialDistance) * 0.001; // Уменьшил чувствительность
+            const scaleChange = (currentDistance - initialDistance) * 0.001;
             
-            // Плавное изменение масштаба
             wallScale = Math.min(Math.max(0.3, lastScale + scaleChange), 3);
             updateWallScale();
         }
     });
 
-    // Zoom колесиком мыши (тоже уменьшил чувствительность)
+    // Zoom колесиком мыши
     container.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const delta = -e.deltaY * 0.002; // Еще меньше чувствительность
+        const delta = -e.deltaY * 0.002;
         wallScale = Math.min(Math.max(0.3, wallScale + delta), 3);
         updateWallScale();
     });
@@ -395,7 +561,6 @@ function zoomOut() {
 
 function resetZoom() {
     animateZoom(1);
-    // Центрируем вид
     setTimeout(() => {
         const container = document.getElementById('wall-container');
         container.scrollLeft = 500;
@@ -407,16 +572,14 @@ function resetZoom() {
 function animateZoom(targetScale) {
     const wall = document.getElementById('wall');
     const startScale = wallScale;
-    const duration = 300; // мс
+    const duration = 300;
     const startTime = performance.now();
     
     function animate(currentTime) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
         
-        // easing function для плавности
-        const easeProgress = easeOutCubic(progress);
-        
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
         wallScale = startScale + (targetScale - startScale) * easeProgress;
         updateWallScale();
         
@@ -428,17 +591,11 @@ function animateZoom(targetScale) {
     requestAnimationFrame(animate);
 }
 
-// Easing function для плавной анимации
-function easeOutCubic(t) {
-    return 1 - Math.pow(1 - t, 3);
-}
-
 function updateWallScale() {
     const wall = document.getElementById('wall');
     wall.style.transform = `scale(${wallScale})`;
     wall.style.transformOrigin = '0 0';
     
-    // Обновляем курсор в зависимости от масштаба
     const container = document.getElementById('wall-container');
     if (wallScale > 1) {
         container.style.cursor = 'grab';
@@ -451,7 +608,6 @@ function updateWallScale() {
 document.addEventListener('DOMContentLoaded', function() {
     loadGallery();
     setupWallNavigation();
-    // Центрируем при загрузке
     setTimeout(() => resetZoom(), 100);
 });
 
@@ -463,11 +619,8 @@ setInterval(loadGallery, 3000000);
     '''
     return HTMLResponse(content=html_content)
 
-
-
 @app.get("/")
 async def root():
-    # Редирект с главной на /webapp
     return RedirectResponse(url="/webapp")
     
 @app.get("/api/photos")
@@ -477,14 +630,12 @@ async def get_photos():
         if db is None:
             return []
         
-        # Не загружаем image_data чтобы не перегружать список
         photos = list(db.photos.find({}, {'image_data': 0}))
         
         for photo in photos:
             photo['_id'] = str(photo['_id'])
             photo.setdefault('likes', 0)
             photo.setdefault('liked_by', [])
-            # Добавляем URL для получения фото
             photo['image_url'] = f"/api/photo/{photo['_id']}"
             
         return photos
@@ -499,11 +650,9 @@ async def get_stats():
         if db is None:
             return {"total_photos": 0, "total_users": 0, "total_likes": 0}
         
-        # Для MongoDB
         total_photos = db.photos.count_documents({})
         total_users = len(db.photos.distinct('user_id'))
         
-        # Считаем общее количество лайков
         pipeline = [{"$group": {"_id": None, "total_likes": {"$sum": "$likes"}}}]
         result = list(db.photos.aggregate(pipeline))
         total_likes = result[0]['total_likes'] if result else 0
@@ -516,7 +665,86 @@ async def get_stats():
     except Exception as e:
         print(f"API Stats Error: {e}")
         return {"total_photos": 0, "total_users": 0, "total_likes": 0}
+
+# Новые API endpoints для лайков и удаления
+from pydantic import BaseModel
+from typing import Optional
+
+class LikeRequest(BaseModel):
+    photo_id: str
+    user_id: int
+    username: str
+
+class DeleteRequest(BaseModel):
+    photo_id: str
+    user_id: int
+
+@app.post("/api/like")
+async def like_photo(request: LikeRequest):
+    try:
+        from database import db
+        if db is None:
+            return {"success": False, "error": "Database not connected"}
         
+        photo = db.photos.find_one({"_id": ObjectId(request.photo_id)})
+        if not photo:
+            return {"success": False, "error": "Photo not found"}
+        
+        # Проверяем лайкал ли уже пользователь
+        liked_by = photo.get('liked_by', [])
+        user_has_liked = request.user_id in liked_by
+        
+        if user_has_liked:
+            # Убираем лайк
+            db.photos.update_one(
+                {"_id": ObjectId(request.photo_id)},
+                {
+                    "$inc": {"likes": -1},
+                    "$pull": {"liked_by": request.user_id}
+                }
+            )
+            new_likes = photo.get('likes', 1) - 1
+        else:
+            # Добавляем лайк
+            db.photos.update_one(
+                {"_id": ObjectId(request.photo_id)},
+                {
+                    "$inc": {"likes": 1},
+                    "$push": {"liked_by": request.user_id}
+                }
+            )
+            new_likes = photo.get('likes', 0) + 1
+        
+        return {"success": True, "new_likes": new_likes}
+        
+    except Exception as e:
+        print(f"Like error: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/delete_photo")
+async def delete_photo(request: DeleteRequest):
+    try:
+        from database import db
+        from config import config
+        
+        if db is None:
+            return {"success": False, "error": "Database not connected"}
+        
+        # Проверяем что пользователь админ
+        if not hasattr(config, 'ADMIN_IDS') or request.user_id not in config.ADMIN_IDS:
+            return {"success": False, "error": "Access denied"}
+        
+        result = db.photos.delete_one({"_id": ObjectId(request.photo_id)})
+        
+        if result.deleted_count > 0:
+            return {"success": True}
+        else:
+            return {"success": False, "error": "Photo not found"}
+            
+    except Exception as e:
+        print(f"Delete error: {e}")
+        return {"success": False, "error": str(e)}
+
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
@@ -526,10 +754,8 @@ async def check_mongo():
     from config import config
     import urllib.parse
     
-    # Скрываем пароль для безопасности
     safe_url = config.MONGODB_URL
     if safe_url and "@" in safe_url:
-        # Заменяем пароль на ****
         parts = safe_url.split("@")
         user_pass = parts[0].split("//")[1]
         if ":" in user_pass:
@@ -541,9 +767,6 @@ async def check_mongo():
         "url_length": len(config.MONGODB_URL)
     }
 
-from fastapi import Response
-from bson import ObjectId, Binary
-
 @app.get("/api/photo/{photo_id}")
 async def get_photo(photo_id: str):
     try:
@@ -551,15 +774,13 @@ async def get_photo(photo_id: str):
         if db is None:
             return Response(content=b"", media_type="image/jpeg")
         
-        # ПРЕОБРАЗУЕМ строку в ObjectId
         photo = db.photos.find_one({"_id": ObjectId(photo_id)})
         if not photo or 'image_data' not in photo:
             return Response(content=b"", media_type="image/jpeg")
         
-        # Возвращаем бинарные данные фото
         image_data = photo['image_data']
         if isinstance(image_data, Binary):
-            image_data = image_data  # Binary объект от pymongo
+            image_data = image_data
         
         return Response(content=image_data, media_type="image/jpeg")
         
@@ -581,7 +802,6 @@ async def debug_db():
         }
         
         if db is not None:
-            # Проверяем коллекции
             collections = db.list_collection_names()
             info["collections"] = collections
             
@@ -589,7 +809,6 @@ async def debug_db():
                 photos_count = db.photos.count_documents({})
                 info["photos_count"] = photos_count
                 
-                # Покажем несколько фото
                 photos = list(db.photos.find().limit(3))
                 info["sample_photos"] = [
                     {
@@ -606,4 +825,3 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
-
