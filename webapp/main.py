@@ -719,7 +719,22 @@ class LikeRequest(BaseModel):
 class DeleteRequest(BaseModel):
     photo_id: str
     user_id: int
-
+    
+@app.get("/api/is_admin/{user_id}")
+async def check_admin(user_id: int):
+    try:
+        user_id_int = int(user_id)
+        # Хардкод твоего ID
+        is_admin = user_id_int == 1790615566
+        return {
+            "is_admin": is_admin,
+            "user_id_received": user_id,
+            "user_id_processed": user_id_int,
+            "admin_ids": [1790615566]
+        }
+    except Exception as e:
+        return {"is_admin": False, "error": str(e)}
+        
 @app.post("/api/like")
 async def like_photo(request: LikeRequest):
     try:
@@ -866,5 +881,6 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
