@@ -367,9 +367,9 @@ async function showPhotoModal(photo, userLiked) {
                 ${isAdmin ? `<button class="action-btn delete-btn" onclick="deletePhoto('${photo._id}')">🗑️ Удалить</button>` : ''}
             </div>
            <div style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.0); padding: 10px 15px; border-radius: 10px;">
-    <strong style="color: rgba(128,128,128,0.8);">@${photo.username}</strong><br>
-    <span style="color: rgba(128,128,128,0.8);">❤️ ${photo.likes} лайков</span><br>
-    <span style="color: rgba(128,128,128,0.8);">Позиция: ${photo.position_x}, ${photo.position_y}</span>
+    <strong style="color: rgba(105,105,105,0.9);">@${photo.username}</strong><br>
+    <span style="color: rgba(105,105,105,0.9);">❤️ ${photo.likes} лайков</span><br>
+    <span style="color: rgba(105,105,105,0.9);">Позиция: ${photo.position_x}, ${photo.position_y}</span>
 </div>
         </div>
     `;
@@ -825,6 +825,7 @@ async def get_photo(photo_id: str):
         return Response(content=b"", media_type="image/jpeg")
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
