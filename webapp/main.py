@@ -670,20 +670,48 @@ async def get_photos():
         
 @app.get("/api/is_admin/{user_id}")
 async def check_admin(user_id: int):
-    from config import config
     try:
-        # Преобразуем в int на всякий случай
         user_id_int = int(user_id)
-        is_admin = hasattr(config, 'ADMIN_IDS') and user_id_int in config.ADMIN_IDS
+        # ПРОСТО ХАРДКОДИМ ТВОЙ ID
+        ADMIN_IDS = [1790615566]  # ← Твой ID прямо здесь
+        is_admin = user_id_int in ADMIN_IDS
+        
+        print(f"🔍 Admin check: user_id={user_id_int}, is_admin={is_admin}")
+        
         return {
             "is_admin": is_admin,
             "user_id_received": user_id,
             "user_id_processed": user_id_int,
-            "admin_ids": getattr(config, 'ADMIN_IDS', [])
+            "admin_ids": ADMIN_IDS
         }
     except Exception as e:
+        print(f"❌ Admin check error: {e}")
         return {"is_admin": False, "error": str(e)}
         
+@app.get("/debug/user")
+async def debug_user():
+    """Показывает какие данные приходят от Telegram"""
+    html = """
+    <html>
+    <body>
+    <h1>User Debug</h1>
+    <div id="userData"></div>
+    <script>
+        try {
+            const user = Telegram.WebApp.initDataUnsafe.user;
+            document.getElementById('userData').innerHTML = 
+                '<pre>' + JSON.stringify(user, null, 2) + '</pre>' +
+                '<p>User ID: ' + user.id + ' (type: ' + typeof user.id + ')</p>' +
+                '<a href="/api/is_admin/' + user.id + '">Check Admin</a>';
+        } catch(e) {
+            document.getElementById('userData').innerHTML = 'Error: ' + e;
+        }
+    </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+    
 @app.get("/api/stats")
 async def get_stats():
     try:
@@ -881,6 +909,7 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
