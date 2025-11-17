@@ -323,7 +323,6 @@ async function loadGallery() {
 }
 
 // Функция показа модалки с фото и кнопками
-// Функция показа модалки с фото и кнопками
 async function showPhotoModal(photo, userLiked) {
     const modal = document.createElement('div');
     modal.style.cssText = `
@@ -340,18 +339,90 @@ async function showPhotoModal(photo, userLiked) {
         cursor: zoom-out;
     `;
     
-    // Проверяем является ли пользователь админом
     let isAdmin = false;
+    let canLike = false;
+    let debugInfo = '';
+    
     if (currentUser) {
         try {
             const response = await fetch(`/api/is_admin/${currentUser.id}`);
             const result = await response.json();
             isAdmin = result.is_admin;
-            console.log('Admin check result:', result);
+            canLike = true;
+            
+            // ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
+            debugInfo = `
+                <div style="position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); color: #0f0; padding: 10px; border-radius: 5px; font-size: 12px; font-family: monospace; max-width: 300px;">
+                    <strong>🔍 DEBUG INFO:</strong><br>
+                    User ID: ${currentUser.id}<br>
+                    Is Admin: ${isAdmin ? '✅ YES' : '❌ NO'}<br>
+                    Admin IDs: [1790615566]<br>
+                    Photo ID: ${photo._id}
+                </div>
+            `;
         } catch (error) {
-            console.error('Admin check error:', error);
+            debugInfo = `
+                <div style="position: absolute; top: 20px; right: 20px; background: rgba(255,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 12px;">
+                    ❌ Admin check error
+                </div>
+            `;
         }
+    } else {
+        debugInfo = `
+            <div style="position: absolute; top: 20px; right: 20px; background: rgba(255,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 12px;">
+                ❌ No user data
+            </div>
+        `;
     }
+
+    modal.innerHTML = `
+        <div style="max-width: 90vw; max-height: 90vh; position: relative;">
+            <img src="${photo.image_url}" 
+                 alt="Фото от @${photo.username}"
+                 style="max-width: 90vw; max-height: 90vh; border-radius: 15px;">
+            
+            ${debugInfo}
+            
+            <div class="action-buttons">
+    ${canLike ? 
+        `<button class="action-btn like-btn ${userLiked ? 'liked' : ''}" onclick="likePhoto('${photo._id}', this)">
+            ❤️ ${photo.likes}
+        </button>` 
+        : '<button class="action-btn" disabled>⚠️ Войдите через Telegram</button>'
+    }
+    ${isAdmin ? `
+        <button class="action-btn delete-btn" onclick="deletePhoto('${photo._id}')">🗑️ Удалить</button>
+        <button class="action-btn" onclick="testAdminCheck()" style="background: blue;">🧪 Тест админа</button>
+    ` : ''}
+</div>
+
+// И добавь эту функцию:
+async function testAdminCheck() {
+    if (!currentUser) {
+        alert('❌ Нет данных пользователя');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/delete_photo', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                photo_id: 'test',
+                user_id: currentUser.id
+            })
+        });
+        const result = await response.json();
+        alert(`🧪 Тест админа:\nUser ID: ${currentUser.id}\nResult: ${result.error || 'SUCCESS'}`);
+    } catch (error) {
+        alert('❌ Тест ошибка: ' + error.message);
+    }
+}
+    `;
+    
+    modal.onclick = () => document.body.removeChild(modal);
+    document.body.appendChild(modal);
+}
     
     modal.innerHTML = `
         <div style="max-width: 90vw; max-height: 90vh; position: relative;">
@@ -809,24 +880,30 @@ async def like_photo(request: LikeRequest):
 async def delete_photo(request: DeleteRequest):
     try:
         from database import db
-        from config import config
+        
+        # ПРЯМОЙ ХАРДКОД - ЛЮБОЙ USER_ID С ТАКИМ ID МОЖЕТ УДАЛЯТЬ
+        ADMIN_IDS = [1790615566, 123456789]  # Добавь сюда все возможные ID
+        
+        print(f"🎯 DELETE ATTEMPT: user_id={request.user_id}, photo_id={request.photo_id}")
         
         if db is None:
             return {"success": False, "error": "Database not connected"}
         
-        # Проверяем что пользователь админ
-        if not hasattr(config, 'ADMIN_IDS') or request.user_id not in config.ADMIN_IDS:
-            return {"success": False, "error": "Access denied"}
+        # ПРОСТАЯ ПРОВЕРКА
+        if request.user_id not in ADMIN_IDS:
+            return {"success": False, "error": f"Access denied. Your ID: {request.user_id}, Admin IDs: {ADMIN_IDS}"}
         
+        # Удаляем без лишних проверок
         result = db.photos.delete_one({"_id": ObjectId(request.photo_id)})
         
         if result.deleted_count > 0:
+            print(f"✅ Photo {request.photo_id} deleted by user {request.user_id}")
             return {"success": True}
         else:
             return {"success": False, "error": "Photo not found"}
             
     except Exception as e:
-        print(f"Delete error: {e}")
+        print(f"❌ Delete error: {e}")
         return {"success": False, "error": str(e)}
 
 @app.get("/health")
@@ -909,6 +986,7 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
