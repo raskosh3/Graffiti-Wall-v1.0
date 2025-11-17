@@ -340,7 +340,7 @@ function showPhotoModal(photo, userLiked) {
     `;
     
     // Проверяем является ли пользователь админом (простая проверка)
-    const isAdmin = currentUser && currentUser.id === 1790615566; // Твой ID
+    const isAdmin = currentUser && parseInt(currentUser.id) === 1790615566;
     
     modal.innerHTML = `
         <div style="max-width: 90vw; max-height: 90vh; position: relative;">
@@ -825,3 +825,4 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
