@@ -34,86 +34,97 @@ async def webapp_page():
         <title>🎨 Graffiti Wall</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            body {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                font-family: "Segoe UI", sans-serif;
-                color: white;
-                min-height: 100vh;
-                overflow-x: hidden;
-            }
-            .header {
-                background: rgba(255,255,255,0.1);
-                backdrop-filter: blur(10px);
-                padding: 20px;
-                text-align: center;
-                border-bottom: 1px solid rgba(255,255,255,0.2);
-            }
-            .stats {
-                display: flex;
-                justify-content: center;
-                gap: 20px;
-                margin: 20px 0;
-                flex-wrap: wrap;
-            }
-            .stat {
-                background: rgba(255,255,255,0.2);
-                padding: 10px 20px;
-                border-radius: 20px;
-                backdrop-filter: blur(5px);
-            }
-            .gallery {
-                padding: 20px;
-                text-align: center;
-            }
-            .photo-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-                gap: 15px;
-                padding: 20px;
-                max-width: 1200px;
-                margin: 0 auto;
-            }
-            .photo-card {
-                background: rgba(255,255,255,0.1);
-                border-radius: 15px;
-                padding: 15px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255,255,255,0.2);
-                transition: transform 0.3s;
-            }
-            .photo-card:hover {
-                transform: translateY(-5px);
-            }
-            .photo-placeholder {
-                background: #555;
-                height: 120px;
-                border-radius: 10px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin-bottom: 10px;
-            }
-            .loading {
-                text-align: center;
-                padding: 50px;
-                font-size: 1.2rem;
-            }
-            .btn {
-                background: linear-gradient(45deg, #FF6B6B, #FF8E53);
-                border: none;
-                padding: 12px 24px;
-                border-radius: 25px;
-                color: white;
-                font-weight: bold;
-                cursor: pointer;
-                margin: 10px;
-            }
-        </style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    body {
+        background: #1a1a1a;
+        font-family: "Segoe UI", sans-serif;
+        color: white;
+        overflow: hidden;
+    }
+    .header {
+        background: rgba(0,0,0,0.8);
+        padding: 15px;
+        text-align: center;
+        position: fixed;
+        top: 0;
+        width: 100%;
+        z-index: 1000;
+        backdrop-filter: blur(10px);
+    }
+    .stats {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin: 10px 0;
+        flex-wrap: wrap;
+    }
+    .stat {
+        background: rgba(255,255,255,0.1);
+        padding: 8px 16px;
+        border-radius: 15px;
+        font-size: 0.9rem;
+    }
+    .wall-container {
+        margin-top: 120px;
+        overflow: scroll;
+        width: 100vw;
+        height: calc(100vh - 120px);
+        cursor: grab;
+    }
+    .wall {
+        position: relative;
+        width: 2000px;
+        height: 2000px;
+        background: #2d2d2d;
+    }
+    .photo {
+        position: absolute;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .photo:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+        z-index: 100;
+    }
+    .photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .photo-credits {
+        position: absolute;
+        bottom: 5px;
+        left: 5px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        backdrop-filter: blur(5px);
+    }
+    .loading {
+        text-align: center;
+        padding: 50px;
+        font-size: 1.2rem;
+    }
+    .btn {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        border: none;
+        padding: 10px 20px;
+        border-radius: 20px;
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+        margin: 5px;
+    }
+</style>
     </head>
     <body>
         <div class="header">
@@ -127,8 +138,9 @@ async def webapp_page():
             <div class="stat" id="total-likes">❤️ Лайки: 0</div>
         </div>
         
-        <div class="gallery">
-            <button class="btn" onclick="loadGallery()">🔄 Обновить</button>
+       <div class="wall-container" id="wall-container">
+    <div class="wall" id="wall"></div>
+</div>
             
             <div class="loading" id="loading">⏳ Загружаем галерею...</div>
             
@@ -138,58 +150,151 @@ async def webapp_page():
         </div>
 
         <script>
-    async function loadGallery() {
-        try {
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('photo-grid').style.display = 'none';
-            
-            // Загружаем статистику
-            const statsResponse = await fetch('/api/stats');
-            const stats = await statsResponse.json();
-            
-            document.getElementById('total-photos').textContent = `📸 Фото: ${stats.total_photos}`;
-            document.getElementById('total-users').textContent = `👥 Участники: ${stats.total_users}`;
-            document.getElementById('total-likes').textContent = `❤️ Лайки: ${stats.total_likes}`;
-            
-            // Загружаем фото
-            const photosResponse = await fetch('/api/photos');
-            const photos = await photosResponse.json();
-            
-            const grid = document.getElementById('photo-grid');
-            grid.innerHTML = '';
-            
-            if (photos.length === 0) {
-                grid.innerHTML = '<div style="text-align: center; padding: 40px;">🎨 Пока нет фото на стене. Будьте первым!</div>';
-            } else {
-                photos.forEach(photo => {
-                    const card = document.createElement('div');
-                    card.className = 'photo-card';
-                    card.innerHTML = `
-                        <div class="photo-placeholder">
-                            📸 Фото ${photo._id.slice(-4)}
-                        </div>
-                        <p><b>@${photo.username}</b></p>
-                        <p>❤️ ${photo.likes} лайков</p>
-                        <small>Позиция: ${photo.position_x}, ${photo.position_y}</small>
-                    `;
-                    grid.appendChild(card);
-                });
-            }
-            
-            document.getElementById('loading').style.display = 'none';
-            grid.style.display = 'grid';
-            
-        } catch (error) {
-            document.getElementById('loading').innerHTML = '❌ Ошибка загрузки галереи';
-            console.error('Error:', error);
+    let wallScale = 1;
+let isDragging = false;
+let startX, startY, scrollLeft, scrollTop;
+
+async function loadGallery() {
+    try {
+        document.getElementById('loading').style.display = 'block';
+        
+        // Загружаем статистику
+        const statsResponse = await fetch('/api/stats');
+        const stats = await statsResponse.json();
+        
+        document.getElementById('total-photos').textContent = `📸 Фото: ${stats.total_photos}`;
+        document.getElementById('total-users').textContent = `👥 Участники: ${stats.total_users}`;
+        document.getElementById('total-likes').textContent = `❤️ Лайки: ${stats.total_likes}`;
+        
+        // Загружаем фото
+        const photosResponse = await fetch('/api/photos');
+        const photos = await photosResponse.json();
+        
+        const wall = document.getElementById('wall');
+        wall.innerHTML = '';
+        
+        if (photos.length === 0) {
+            wall.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">🎨 Пока нет фото на стене. Будьте первым!</div>';
+        } else {
+            photos.forEach(photo => {
+                const photoElement = document.createElement('div');
+                photoElement.className = 'photo';
+                photoElement.style.left = photo.position_x + 'px';
+                photoElement.style.top = photo.position_y + 'px';
+                photoElement.style.width = '150px';
+                photoElement.style.height = '150px';
+                
+                // Временный плейсхолдер - потом заменишь на реальные фото
+                photoElement.innerHTML = `
+                    <div style="width:100%;height:100%;background:linear-gradient(45deg, #${photo._id.slice(-6)}, #${photo._id.slice(-3)}${photo._id.slice(-6, -3)});display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;">
+                        📸
+                    </div>
+                    <div class="photo-credits">@${photo.username}</div>
+                `;
+                
+                // Добавляем зум при клике
+                photoElement.onclick = (e) => {
+                    e.stopPropagation();
+                    zoomPhoto(photo);
+                };
+                
+                wall.appendChild(photoElement);
+            });
         }
+        
+        document.getElementById('loading').style.display = 'none';
+        
+    } catch (error) {
+        document.getElementById('loading').innerHTML = '❌ Ошибка загрузки галереи';
+        console.error('Error:', error);
     }
+}
+
+// Функция зума фото
+function zoomPhoto(photo) {
+    // Создаем модальное окно для просмотра фото
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0,0,0,0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        cursor: zoom-out;
+    `;
     
-    // Автоматическая загрузка при открытии
+    modal.innerHTML = `
+        <div style="max-width: 90vw; max-height: 90vh; position: relative;">
+            <div style="background: linear-gradient(45deg, #${photo._id.slice(-6)}, #${photo._id.slice(-3)}${photo._id.slice(-6, -3)}); 
+                       width: 400px; height: 400px; display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem; border-radius: 15px;">
+                📸
+            </div>
+            <div style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 15px; border-radius: 10px;">
+                <strong>@${photo.username}</strong><br>
+                ❤️ ${photo.likes} лайков<br>
+                Позиция: ${photo.position_x}, ${photo.position_y}
+            </div>
+        </div>
+    `;
+    
+    modal.onclick = () => document.body.removeChild(modal);
+    document.body.appendChild(modal);
+}
+
+// Функции для навигации по стене
+function setupWallNavigation() {
+    const container = document.getElementById('wall-container');
+    
+    container.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.pageX - container.offsetLeft;
+        startY = e.pageY - container.offsetTop;
+        scrollLeft = container.scrollLeft;
+        scrollTop = container.scrollTop;
+        container.style.cursor = 'grabbing';
+    });
+    
+    container.addEventListener('mouseup', () => {
+        isDragging = false;
+        container.style.cursor = 'grab';
+    });
+    
+    container.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const x = e.pageX - container.offsetLeft;
+        const y = e.pageY - container.offsetTop;
+        const walkX = (x - startX) * 2;
+        const walkY = (y - startY) * 2;
+        container.scrollLeft = scrollLeft - walkX;
+        container.scrollTop = scrollTop - walkY;
+    });
+    
+    // Zoom колесиком мыши
+    container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = -e.deltaY * 0.01;
+        wallScale = Math.min(Math.max(0.5, wallScale + delta), 3);
+        
+        const wall = document.getElementById('wall');
+        wall.style.transform = `scale(${wallScale})`;
+        wall.style.transformOrigin = '0 0';
+    });
+}
+
+// Автоматическая загрузка при открытии
+document.addEventListener('DOMContentLoaded', function() {
     loadGallery();
-    
-    // Авто-обновление каждые 10 секунд
-    setInterval(loadGallery, 10000);
+    setupWallNavigation();
+});
+
+// Авто-обновление каждые 10 секунд
+setInterval(loadGallery, 10000000);
 </script>
     </body>
     </html>
@@ -313,6 +418,7 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
