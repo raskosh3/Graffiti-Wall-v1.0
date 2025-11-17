@@ -111,28 +111,32 @@ async def webapp_page():
         pointer-events: none;
     }
     .photo-credits {
-        position: absolute;
-        bottom: 5px;
-        left: 5px;
-        background: rgba(0,0,0,0.7);
-        color: white;
-        padding: 3px 8px;
-        border-radius: 10px;
-        font-size: 0.7rem;
-        backdrop-filter: blur(5px);
-        pointer-events: none;
-    }
-    .photo-likes {
-        position: absolute;
-        top: 5px;
-        right: 5px;
-        background: rgba(0,0,0,0.7);
-        color: white;
-        padding: 2px 6px;
-        border-radius: 10px;
-        font-size: 0.6rem;
-        backdrop-filter: blur(5px);
-        pointer-events: none;
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    background: rgba(0,0,0,0.5); /* Было 0.7, стало 0.5 - прозрачнее */
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    backdrop-filter: blur(5px);
+    pointer-events: none;
+    opacity: 0.8; /* Добавляем общую прозрачность */
+}
+
+.photo-likes {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(0,0,0,0.5); /* Было 0.7 */
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.6rem;
+    backdrop-filter: blur(5px);
+    pointer-events: none;
+    opacity: 0.8;
+}
     }
     .loading {
         text-align: center;
@@ -184,16 +188,17 @@ async def webapp_page():
     }
     
     .action-btn {
-        background: rgba(0,0,0,0.7);
-        color: white;
-        border: none;
-        padding: 10px 15px;
-        border-radius: 20px;
-        cursor: pointer;
-        backdrop-filter: blur(10px);
-        font-size: 0.9rem;
-        transition: all 0.2s ease;
-    }
+    background: rgba(0,0,0,0.6); /* Было 0.7 */
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    opacity: 0.9;
+}
     
     .action-btn:hover {
         background: rgba(255,255,255,0.2);
@@ -624,6 +629,41 @@ setInterval(loadGallery, 30000);
 async def root():
     return RedirectResponse(url="/webapp")
     
+@app.get("/api/top_users")
+async def get_top_users():
+    try:
+        from database import db
+        if db is None:
+            return []
+        
+        # Агрегация для топа пользователей
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$user_id",
+                    "username": {"$first": "$username"},
+                    "total_photos": {"$sum": 1},
+                    "total_likes": {"$sum": "$likes"},
+                    "avg_likes": {"$avg": "$likes"}
+                }
+            },
+            {"$sort": {"total_likes": -1}},
+            {"$limit": 10}
+        ]
+        
+        top_users = list(db.photos.aggregate(pipeline))
+        
+        # Преобразуем результат
+        for user in top_users:
+            user['user_id'] = user['_id']
+            del user['_id']
+            
+        return top_users
+        
+    except Exception as e:
+        print(f"Top users error: {e}")
+        return []
+        
 @app.get("/api/photos")
 async def get_photos():
     try:
@@ -785,3 +825,4 @@ async def get_photo(photo_id: str):
         return Response(content=b"", media_type="image/jpeg")
         
 print("✅ webapp/main.py загружен! App создан.")
+
