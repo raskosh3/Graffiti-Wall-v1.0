@@ -184,13 +184,14 @@ async function loadGallery() {
                 photoElement.style.width = '150px';
                 photoElement.style.height = '150px';
                 
-                // Временный плейсхолдер - потом заменишь на реальные фото
-                photoElement.innerHTML = `
-                    <div style="width:100%;height:100%;background:linear-gradient(45deg, #${photo._id.slice(-6)}, #${photo._id.slice(-3)}${photo._id.slice(-6, -3)});display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;">
-                        📸
-                    </div>
-                    <div class="photo-credits">@${photo.username}</div>
-                `;
+               // РЕАЛЬНЫЕ ФОТО ИЗ MONGODB
+            photoElement.innerHTML = `
+                <img src="${photo.image_url}" 
+                     alt="Фото от @${photo.username}" 
+                     loading="lazy"
+                     style="width:100%;height:100%;object-fit:cover;border-radius:8px;">
+                <div class="photo-credits">@${photo.username}</div>
+            `;
                 
                 // Добавляем зум при клике
                 photoElement.onclick = (e) => {
@@ -228,19 +229,18 @@ function zoomPhoto(photo) {
         cursor: zoom-out;
     `;
     
-    modal.innerHTML = `
-        <div style="max-width: 90vw; max-height: 90vh; position: relative;">
-            <div style="background: linear-gradient(45deg, #${photo._id.slice(-6)}, #${photo._id.slice(-3)}${photo._id.slice(-6, -3)}); 
-                       width: 400px; height: 400px; display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem; border-radius: 15px;">
-                📸
-            </div>
-            <div style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 15px; border-radius: 10px;">
-                <strong>@${photo.username}</strong><br>
-                ❤️ ${photo.likes} лайков<br>
-                Позиция: ${photo.position_x}, ${photo.position_y}
-            </div>
+   modal.innerHTML = `
+    <div style="max-width: 90vw; max-height: 90vh; position: relative;">
+        <img src="${photo.image_url}" 
+             alt="Фото от @${photo.username}"
+             style="max-width: 90vw; max-height: 90vh; border-radius: 15px;">
+        <div style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 15px; border-radius: 10px;">
+            <strong>@${photo.username}</strong><br>
+            ❤️ ${photo.likes} лайков<br>
+            Позиция: ${photo.position_x}, ${photo.position_y}
         </div>
-    `;
+    </div>
+`;
     
     modal.onclick = () => document.body.removeChild(modal);
     document.body.appendChild(modal);
@@ -315,15 +315,15 @@ async def get_photos():
         if db is None:
             return []
         
-        # Для MongoDB
-        photos = list(db.photos.find({}))
+        # Не загружаем image_data чтобы не перегружать список
+        photos = list(db.photos.find({}, {'image_data': 0}))
         
-        # Преобразуем ObjectId в строку для JSON
         for photo in photos:
             photo['_id'] = str(photo['_id'])
-            # Убедимся что все нужные поля есть
             photo.setdefault('likes', 0)
             photo.setdefault('liked_by', [])
+            # Добавляем URL для получения фото
+            photo['image_url'] = f"/api/photo/{photo['_id']}"
             
         return photos
     except Exception as e:
@@ -378,7 +378,31 @@ async def check_mongo():
         "mongodb_url_safe": safe_url,
         "url_length": len(config.MONGODB_URL)
     }
-    
+from fastapi import Response
+from bson import Binary
+
+@app.get("/api/photo/{photo_id}")
+async def get_photo(photo_id: str):
+    try:
+        from database import db
+        if db is None:
+            return Response(content=b"", media_type="image/jpeg")
+        
+        photo = db.photos.find_one({"_id": photo_id})
+        if not photo or 'image_data' not in photo:
+            return Response(content=b"", media_type="image/jpeg")
+        
+        # Возвращаем бинарные данные фото
+        image_data = photo['image_data']
+        if isinstance(image_data, Binary):
+            image_data = image_data  # Binary объект от pymongo
+        
+        return Response(content=image_data, media_type="image/jpeg")
+        
+    except Exception as e:
+        print(f"Photo endpoint error: {e}")
+        return Response(content=b"", media_type="image/jpeg")
+        
 @app.get("/debug/db")
 async def debug_db():
     try:
@@ -418,6 +442,7 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
