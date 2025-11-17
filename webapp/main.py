@@ -335,7 +335,7 @@ async function showPhotoModal(photo, userLiked) {
         left: 0;
         width: 100vw;
         height: 100vh;
-        background: rgba(0,0,0,0.9);
+        background: rgba(0,0,0,0.4);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -825,5 +825,6 @@ async def get_photo(photo_id: str):
         return Response(content=b"", media_type="image/jpeg")
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
