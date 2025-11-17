@@ -46,15 +46,21 @@ async def webapp_page():
         overflow: hidden;
     }
     .header {
-        background: rgba(0,0,0,0.8);
-        padding: 15px;
+        background: rgba(0,0,0,0.9);
+        padding: 10px;
         text-align: center;
         position: fixed;
         top: 0;
         width: 100%;
         z-index: 1000;
         backdrop-filter: blur(10px);
+        height: 80px; /* Фиксированная высота */
     }
+
+.wall-container {
+    margin-top: 80px; /* Уменьши отступ */
+    height: calc(100vh - 80px);
+}
     .stats {
         display: flex;
         justify-content: center;
@@ -443,6 +449,7 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
