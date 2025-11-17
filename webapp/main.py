@@ -114,28 +114,28 @@ async def webapp_page():
     position: absolute;
     bottom: 5px;
     left: 5px;
-    background: rgba(0,0,0,0.5); /* Было 0.7, стало 0.5 - прозрачнее */
+    background: rgba(0,0,0,0.3); /* Было 0.7, стало 0.5 - прозрачнее */
     color: white;
     padding: 3px 8px;
     border-radius: 10px;
     font-size: 0.7rem;
     backdrop-filter: blur(5px);
     pointer-events: none;
-    opacity: 0.8; /* Добавляем общую прозрачность */
+    opacity: 0.4; /* Добавляем общую прозрачность */
 }
 
 .photo-likes {
     position: absolute;
     top: 5px;
     right: 5px;
-    background: rgba(0,0,0,0.5); /* Было 0.7 */
+    background: rgba(0,0,0,0.3); /* Было 0.7 */
     color: white;
     padding: 2px 6px;
     border-radius: 10px;
     font-size: 0.6rem;
     backdrop-filter: blur(5px);
     pointer-events: none;
-    opacity: 0.8;
+    opacity: 0.4;
 }
     }
     .loading {
@@ -197,7 +197,7 @@ async def webapp_page():
     backdrop-filter: blur(10px);
     font-size: 0.9rem;
     transition: all 0.2s ease;
-    opacity: 0.9;
+    opacity: 0.3;
 }
     
     .action-btn:hover {
@@ -825,4 +825,5 @@ async def get_photo(photo_id: str):
         return Response(content=b"", media_type="image/jpeg")
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
