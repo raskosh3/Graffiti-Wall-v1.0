@@ -757,6 +757,10 @@ async def like_photo(request: LikeRequest):
         print(f"Like error: {e}")
         return {"success": False, "error": str(e)}
 
+@app.get("/ping")
+async def ping():
+    return {"status": "alive", "timestamp": datetime.utcnow().isoformat()}
+    
 @app.post("/api/delete_photo")
 async def delete_photo(request: DeleteRequest):
     try:
@@ -825,6 +829,7 @@ async def get_photo(photo_id: str):
         return Response(content=b"", media_type="image/jpeg")
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
