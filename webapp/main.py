@@ -255,7 +255,6 @@ let currentUser = null;
 try {
     if (window.Telegram && Telegram.WebApp) {
         currentUser = Telegram.WebApp.initDataUnsafe.user;
-        console.log('User:', currentUser);
     }
 } catch (e) {
     console.log('Telegram Web App not available');
@@ -339,90 +338,17 @@ async function showPhotoModal(photo, userLiked) {
         cursor: zoom-out;
     `;
     
+    // Проверяем является ли пользователь админом
     let isAdmin = false;
-    let canLike = false;
-    let debugInfo = '';
-    
     if (currentUser) {
         try {
             const response = await fetch(`/api/is_admin/${currentUser.id}`);
             const result = await response.json();
             isAdmin = result.is_admin;
-            canLike = true;
-            
-            // ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
-            debugInfo = `
-                <div style="position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); color: #0f0; padding: 10px; border-radius: 5px; font-size: 12px; font-family: monospace; max-width: 300px;">
-                    <strong>🔍 DEBUG INFO:</strong><br>
-                    User ID: ${currentUser.id}<br>
-                    Is Admin: ${isAdmin ? '✅ YES' : '❌ NO'}<br>
-                    Admin IDs: [1790615566]<br>
-                    Photo ID: ${photo._id}
-                </div>
-            `;
         } catch (error) {
-            debugInfo = `
-                <div style="position: absolute; top: 20px; right: 20px; background: rgba(255,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 12px;">
-                    ❌ Admin check error
-                </div>
-            `;
+            console.error('Admin check error:', error);
         }
-    } else {
-        debugInfo = `
-            <div style="position: absolute; top: 20px; right: 20px; background: rgba(255,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 12px;">
-                ❌ No user data
-            </div>
-        `;
     }
-
-    modal.innerHTML = `
-        <div style="max-width: 90vw; max-height: 90vh; position: relative;">
-            <img src="${photo.image_url}" 
-                 alt="Фото от @${photo.username}"
-                 style="max-width: 90vw; max-height: 90vh; border-radius: 15px;">
-            
-            ${debugInfo}
-            
-            <div class="action-buttons">
-    ${canLike ? 
-        `<button class="action-btn like-btn ${userLiked ? 'liked' : ''}" onclick="likePhoto('${photo._id}', this)">
-            ❤️ ${photo.likes}
-        </button>` 
-        : '<button class="action-btn" disabled>⚠️ Войдите через Telegram</button>'
-    }
-    ${isAdmin ? `
-        <button class="action-btn delete-btn" onclick="deletePhoto('${photo._id}')">🗑️ Удалить</button>
-        <button class="action-btn" onclick="testAdminCheck()" style="background: blue;">🧪 Тест админа</button>
-    ` : ''}
-</div>
-
-// И добавь эту функцию:
-async function testAdminCheck() {
-    if (!currentUser) {
-        alert('❌ Нет данных пользователя');
-        return;
-    }
-    
-    try {
-        const response = await fetch('/api/delete_photo', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                photo_id: 'test',
-                user_id: currentUser.id
-            })
-        });
-        const result = await response.json();
-        alert(`🧪 Тест админа:\nUser ID: ${currentUser.id}\nResult: ${result.error || 'SUCCESS'}`);
-    } catch (error) {
-        alert('❌ Тест ошибка: ' + error.message);
-    }
-}
-    `;
-    
-    modal.onclick = () => document.body.removeChild(modal);
-    document.body.appendChild(modal);
-}
     
     modal.innerHTML = `
         <div style="max-width: 90vw; max-height: 90vh; position: relative;">
@@ -470,11 +396,8 @@ async function likePhoto(photoId, button) {
         const result = await response.json();
         
         if (result.success) {
-            // Обновляем кнопку
             button.classList.toggle('liked');
             button.innerHTML = `❤️ ${result.new_likes}`;
-            
-            // Обновляем статистику
             loadGallery();
         } else {
             alert('❌ ' + result.error);
@@ -495,15 +418,6 @@ async function deletePhoto(photoId) {
     if (!confirm('🗑️ Удалить это фото?')) return;
     
     try {
-        // Сначала проверяем права еще раз
-        const adminCheck = await fetch(`/api/is_admin/${currentUser.id}`);
-        const adminResult = await adminCheck.json();
-        
-        if (!adminResult.is_admin) {
-            alert('❌ У вас нет прав для удаления фото');
-            return;
-        }
-        
         const response = await fetch('/api/delete_photo', {
             method: 'POST',
             headers: {
@@ -519,8 +433,8 @@ async function deletePhoto(photoId) {
         
         if (result.success) {
             alert('✅ Фото удалено');
-            document.body.removeChild(document.body.lastChild); // Закрываем модалку
-            loadGallery(); // Перезагружаем галерею
+            document.body.removeChild(document.body.lastChild);
+            loadGallery();
         } else {
             alert('❌ ' + result.error);
         }
@@ -535,7 +449,6 @@ function showFullWall() {
     const container = document.getElementById('wall-container');
     const wall = document.getElementById('wall');
     
-    // Рассчитываем масштаб чтобы вся стена влезла в экран
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
     const wallWidth = 2000;
@@ -548,7 +461,6 @@ function showFullWall() {
     wallScale = Math.max(minScale, 0.1);
     updateWallScale();
     
-    // Центрируем
     container.scrollLeft = (wallWidth * wallScale - containerWidth) / 2;
     container.scrollTop = (wallHeight * wallScale - containerHeight) / 2;
 }
@@ -563,7 +475,6 @@ function setupWallNavigation() {
     let initialDistance = null;
     let lastScale = wallScale;
 
-    // Desktop события
     container.addEventListener('mousedown', (e) => {
         isDragging = true;
         startX = e.pageX - container.offsetLeft;
@@ -589,7 +500,6 @@ function setupWallNavigation() {
         container.scrollTop = scrollTop - walkY;
     });
 
-    // Touch события для мобильных
     container.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
             isDragging = true;
@@ -628,7 +538,6 @@ function setupWallNavigation() {
         }
     });
 
-    // Zoom колесиком мыши
     container.addEventListener('wheel', (e) => {
         e.preventDefault();
         const delta = -e.deltaY * 0.002;
@@ -644,7 +553,6 @@ function getDistance(touch1, touch2) {
     );
 }
 
-// Функции зума с плавной анимацией
 function zoomIn() {
     const targetScale = Math.min(wallScale + 0.2, 3);
     animateZoom(targetScale);
@@ -664,7 +572,6 @@ function resetZoom() {
     }, 300);
 }
 
-// Плавная анимация зума
 function animateZoom(targetScale) {
     const wall = document.getElementById('wall');
     const startScale = wallScale;
@@ -700,15 +607,13 @@ function updateWallScale() {
     }
 }
 
-// Автоматическая загрузка при открытии
 document.addEventListener('DOMContentLoaded', function() {
     loadGallery();
     setupWallNavigation();
     setTimeout(() => resetZoom(), 100);
 });
 
-// Авто-обновление каждые 30 секунд
-setInterval(loadGallery, 3000000);
+setInterval(loadGallery, 30000);
 </script>
     </body>
     </html>
@@ -738,51 +643,7 @@ async def get_photos():
     except Exception as e:
         print(f"API Photos Error: {e}")
         return []
-        
-@app.get("/api/is_admin/{user_id}")
-async def check_admin(user_id: int):
-    try:
-        user_id_int = int(user_id)
-        # ПРОСТО ХАРДКОДИМ ТВОЙ ID
-        ADMIN_IDS = [1790615566]  # ← Твой ID прямо здесь
-        is_admin = user_id_int in ADMIN_IDS
-        
-        print(f"🔍 Admin check: user_id={user_id_int}, is_admin={is_admin}")
-        
-        return {
-            "is_admin": is_admin,
-            "user_id_received": user_id,
-            "user_id_processed": user_id_int,
-            "admin_ids": ADMIN_IDS
-        }
-    except Exception as e:
-        print(f"❌ Admin check error: {e}")
-        return {"is_admin": False, "error": str(e)}
-        
-@app.get("/debug/user")
-async def debug_user():
-    """Показывает какие данные приходят от Telegram"""
-    html = """
-    <html>
-    <body>
-    <h1>User Debug</h1>
-    <div id="userData"></div>
-    <script>
-        try {
-            const user = Telegram.WebApp.initDataUnsafe.user;
-            document.getElementById('userData').innerHTML = 
-                '<pre>' + JSON.stringify(user, null, 2) + '</pre>' +
-                '<p>User ID: ' + user.id + ' (type: ' + typeof user.id + ')</p>' +
-                '<a href="/api/is_admin/' + user.id + '">Check Admin</a>';
-        } catch(e) {
-            document.getElementById('userData').innerHTML = 'Error: ' + e;
-        }
-    </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html)
-    
+
 @app.get("/api/stats")
 async def get_stats():
     try:
@@ -806,9 +667,7 @@ async def get_stats():
         print(f"API Stats Error: {e}")
         return {"total_photos": 0, "total_users": 0, "total_likes": 0}
 
-# Новые API endpoints для лайков и удаления
 from pydantic import BaseModel
-from typing import Optional
 
 class LikeRequest(BaseModel):
     photo_id: str
@@ -818,22 +677,7 @@ class LikeRequest(BaseModel):
 class DeleteRequest(BaseModel):
     photo_id: str
     user_id: int
-    
-@app.get("/api/is_admin/{user_id}")
-async def check_admin(user_id: int):
-    try:
-        user_id_int = int(user_id)
-        # Хардкод твоего ID
-        is_admin = user_id_int == 1790615566
-        return {
-            "is_admin": is_admin,
-            "user_id_received": user_id,
-            "user_id_processed": user_id_int,
-            "admin_ids": [1790615566]
-        }
-    except Exception as e:
-        return {"is_admin": False, "error": str(e)}
-        
+
 @app.post("/api/like")
 async def like_photo(request: LikeRequest):
     try:
@@ -845,12 +689,10 @@ async def like_photo(request: LikeRequest):
         if not photo:
             return {"success": False, "error": "Photo not found"}
         
-        # Проверяем лайкал ли уже пользователь
         liked_by = photo.get('liked_by', [])
         user_has_liked = request.user_id in liked_by
         
         if user_has_liked:
-            # Убираем лайк
             db.photos.update_one(
                 {"_id": ObjectId(request.photo_id)},
                 {
@@ -860,7 +702,6 @@ async def like_photo(request: LikeRequest):
             )
             new_likes = photo.get('likes', 1) - 1
         else:
-            # Добавляем лайк
             db.photos.update_one(
                 {"_id": ObjectId(request.photo_id)},
                 {
@@ -880,53 +721,47 @@ async def like_photo(request: LikeRequest):
 async def delete_photo(request: DeleteRequest):
     try:
         from database import db
-        
-        # ПРЯМОЙ ХАРДКОД - ЛЮБОЙ USER_ID С ТАКИМ ID МОЖЕТ УДАЛЯТЬ
-        ADMIN_IDS = [1790615566, 123456789]  # Добавь сюда все возможные ID
-        
-        print(f"🎯 DELETE ATTEMPT: user_id={request.user_id}, photo_id={request.photo_id}")
+        from config import config
         
         if db is None:
             return {"success": False, "error": "Database not connected"}
         
-        # ПРОСТАЯ ПРОВЕРКА
-        if request.user_id not in ADMIN_IDS:
-            return {"success": False, "error": f"Access denied. Your ID: {request.user_id}, Admin IDs: {ADMIN_IDS}"}
+        # ПРОСТОЙ ХАРДКОД - ЛЮБОЙ С ЭТИМ ID МОЖЕТ УДАЛЯТЬ
+        ADMIN_IDS = [1790615566]
         
-        # Удаляем без лишних проверок
+        if request.user_id not in ADMIN_IDS:
+            return {"success": False, "error": "Access denied"}
+        
         result = db.photos.delete_one({"_id": ObjectId(request.photo_id)})
         
         if result.deleted_count > 0:
-            print(f"✅ Photo {request.photo_id} deleted by user {request.user_id}")
             return {"success": True}
         else:
             return {"success": False, "error": "Photo not found"}
             
     except Exception as e:
-        print(f"❌ Delete error: {e}")
+        print(f"Delete error: {e}")
         return {"success": False, "error": str(e)}
+
+@app.get("/api/is_admin/{user_id}")
+async def check_admin(user_id: int):
+    try:
+        user_id_int = int(user_id)
+        ADMIN_IDS = [1790615566]
+        is_admin = user_id_int in ADMIN_IDS
+        
+        return {
+            "is_admin": is_admin,
+            "user_id_received": user_id,
+            "user_id_processed": user_id_int,
+            "admin_ids": ADMIN_IDS
+        }
+    except Exception as e:
+        return {"is_admin": False, "error": str(e)}
 
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
-    
-@app.get("/check-mongo")
-async def check_mongo():
-    from config import config
-    import urllib.parse
-    
-    safe_url = config.MONGODB_URL
-    if safe_url and "@" in safe_url:
-        parts = safe_url.split("@")
-        user_pass = parts[0].split("//")[1]
-        if ":" in user_pass:
-            user = user_pass.split(":")[0]
-            safe_url = safe_url.replace(user_pass, f"{user}:****")
-    
-    return {
-        "mongodb_url_safe": safe_url,
-        "url_length": len(config.MONGODB_URL)
-    }
 
 @app.get("/api/photo/{photo_id}")
 async def get_photo(photo_id: str):
@@ -949,45 +784,4 @@ async def get_photo(photo_id: str):
         print(f"Photo endpoint error: {e}")
         return Response(content=b"", media_type="image/jpeg")
         
-@app.get("/debug/db")
-async def debug_db():
-    try:
-        from database import db
-        from config import config
-        
-        info = {
-            "mongodb_url_configured": bool(config.MONGODB_URL),
-            "mongodb_url_length": len(config.MONGODB_URL) if config.MONGODB_URL else 0,
-            "db_connected": db is not None,
-            "db_name": db.name if db else None
-        }
-        
-        if db is not None:
-            collections = db.list_collection_names()
-            info["collections"] = collections
-            
-            if "photos" in collections:
-                photos_count = db.photos.count_documents({})
-                info["photos_count"] = photos_count
-                
-                photos = list(db.photos.find().limit(3))
-                info["sample_photos"] = [
-                    {
-                        "username": p.get("username"),
-                        "position": f"{p.get('position_x')},{p.get('position_y')}",
-                        "likes": p.get("likes", 0)
-                    }
-                    for p in photos
-                ]
-        
-        return info
-        
-    except Exception as e:
-        return {"error": str(e)}
-        
 print("✅ webapp/main.py загружен! App создан.")
-
-
-
-
-
