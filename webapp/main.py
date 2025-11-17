@@ -292,6 +292,11 @@ function setupWallNavigation() {
     const container = document.getElementById('wall-container');
     const wall = document.getElementById('wall');
     
+    let isDragging = false;
+    let startX, startY, scrollLeft, scrollTop;
+    let initialDistance = null;
+    let lastScale = wallScale;
+
     // Desktop события
     container.addEventListener('mousedown', (e) => {
         isDragging = true;
@@ -327,8 +332,10 @@ function setupWallNavigation() {
             scrollLeft = container.scrollLeft;
             scrollTop = container.scrollTop;
         } else if (e.touches.length === 2) {
-            // Pinch to zoom
+            // Pinch to zoom - запоминаем начальное расстояние
+            isDragging = false;
             initialDistance = getDistance(e.touches[0], e.touches[1]);
+            lastScale = wallScale;
         }
     });
 
@@ -339,6 +346,7 @@ function setupWallNavigation() {
 
     container.addEventListener('touchmove', (e) => {
         if (e.touches.length === 1 && isDragging) {
+            // Перетаскивание одним пальцем
             e.preventDefault();
             const x = e.touches[0].pageX - container.offsetLeft;
             const y = e.touches[0].pageY - container.offsetTop;
@@ -347,21 +355,22 @@ function setupWallNavigation() {
             container.scrollLeft = scrollLeft - walkX;
             container.scrollTop = scrollTop - walkY;
         } else if (e.touches.length === 2 && initialDistance !== null) {
-            // Pinch to zoom
+            // Pinch to zoom - плавный зум
             e.preventDefault();
             const currentDistance = getDistance(e.touches[0], e.touches[1]);
-            const scaleChange = (currentDistance - initialDistance) * 0.005;
+            const scaleChange = (currentDistance - initialDistance) * 0.001; // Уменьшил чувствительность
             
-            wallScale = Math.min(Math.max(0.3, wallScale + scaleChange), 5);
+            // Плавное изменение масштаба
+            wallScale = Math.min(Math.max(0.3, lastScale + scaleChange), 3);
             updateWallScale();
         }
     });
 
-    // Zoom колесиком мыши
+    // Zoom колесиком мыши (тоже уменьшил чувствительность)
     container.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const delta = -e.deltaY * 0.005;
-        wallScale = Math.min(Math.max(0.3, wallScale + delta), 5);
+        const delta = -e.deltaY * 0.002; // Еще меньше чувствительность
+        wallScale = Math.min(Math.max(0.3, wallScale + delta), 3);
         updateWallScale();
     });
 }
@@ -373,30 +382,69 @@ function getDistance(touch1, touch2) {
     );
 }
 
-// Функции зума
+// Функции зума с плавной анимацией
 function zoomIn() {
-    wallScale = Math.min(wallScale + 0.3, 5);
-    updateWallScale();
+    const targetScale = Math.min(wallScale + 0.2, 3);
+    animateZoom(targetScale);
 }
 
 function zoomOut() {
-    wallScale = Math.max(wallScale - 0.3, 0.3);
-    updateWallScale();
+    const targetScale = Math.max(wallScale - 0.2, 0.3);
+    animateZoom(targetScale);
 }
 
 function resetZoom() {
-    wallScale = 1;
-    updateWallScale();
+    animateZoom(1);
     // Центрируем вид
-    const container = document.getElementById('wall-container');
-    container.scrollLeft = 500;
-    container.scrollTop = 500;
+    setTimeout(() => {
+        const container = document.getElementById('wall-container');
+        container.scrollLeft = 500;
+        container.scrollTop = 500;
+    }, 300);
+}
+
+// Плавная анимация зума
+function animateZoom(targetScale) {
+    const wall = document.getElementById('wall');
+    const startScale = wallScale;
+    const duration = 300; // мс
+    const startTime = performance.now();
+    
+    function animate(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // easing function для плавности
+        const easeProgress = easeOutCubic(progress);
+        
+        wallScale = startScale + (targetScale - startScale) * easeProgress;
+        updateWallScale();
+        
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        }
+    }
+    
+    requestAnimationFrame(animate);
+}
+
+// Easing function для плавной анимации
+function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
 }
 
 function updateWallScale() {
     const wall = document.getElementById('wall');
     wall.style.transform = `scale(${wallScale})`;
     wall.style.transformOrigin = '0 0';
+    
+    // Обновляем курсор в зависимости от масштаба
+    const container = document.getElementById('wall-container');
+    if (wallScale > 1) {
+        container.style.cursor = 'grab';
+    } else {
+        container.style.cursor = 'default';
+    }
 }
 
 // Автоматическая загрузка при открытии
@@ -558,3 +606,4 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
