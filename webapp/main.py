@@ -379,8 +379,8 @@ async def check_mongo():
         "url_length": len(config.MONGODB_URL)
     }
 from fastapi import Response
-from bson import Binary
 
+from bson import ObjectId, Binary
 @app.get("/api/photo/{photo_id}")
 async def get_photo(photo_id: str):
     try:
@@ -388,7 +388,8 @@ async def get_photo(photo_id: str):
         if db is None:
             return Response(content=b"", media_type="image/jpeg")
         
-        photo = db.photos.find_one({"_id": photo_id})
+        # ПРЕОБРАЗУЕМ строку в ObjectId
+        photo = db.photos.find_one({"_id": ObjectId(photo_id)})
         if not photo or 'image_data' not in photo:
             return Response(content=b"", media_type="image/jpeg")
         
@@ -442,6 +443,7 @@ async def debug_db():
         return {"error": str(e)}
         
 print("✅ webapp/main.py загружен! App создан.")
+
 
 
 
