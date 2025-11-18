@@ -1,0 +1,201 @@
+/* Основные стили для Graffiti Wall */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #1a1a1a;
+    font-family: "Segoe UI", sans-serif;
+    color: white;
+    overflow: hidden;
+    touch-action: none;
+}
+
+/* Шапка с статистикой */
+.header {
+    background: rgba(0,0,0,0.95);
+    padding: 8px 15px;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+    backdrop-filter: blur(15px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    height: auto;
+    min-height: 70px;
+}
+
+.stats {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 5px 0;
+    flex-wrap: wrap;
+}
+
+.stat {
+    background: rgba(255,255,255,0.15);
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Контейнер стены */
+.wall-container {
+    margin-top: 80px;
+    height: calc(100vh - 80px);
+    overflow: scroll;
+    cursor: grab;
+    -webkit-overflow-scrolling: touch;
+}
+
+.wall {
+    position: relative;
+    width: 2000px;
+    height: 2000px;
+    background: #2d2d2d;
+    transition: transform 0.1s ease-out;
+}
+
+/* Стили для фотографий */
+.photo {
+    position: absolute;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+    touch-action: none;
+    cursor: pointer;
+}
+
+.photo:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+    z-index: 100;
+}
+
+.photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+}
+
+/* Кредиты и лайки на фото */
+.photo-credits {
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    background: rgba(0,0,0,0.3);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    backdrop-filter: blur(5px);
+    pointer-events: none;
+    opacity: 0.4;
+}
+
+.photo-likes {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(0,0,0,0.3);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.6rem;
+    backdrop-filter: blur(5px);
+    pointer-events: none;
+    opacity: 0.4;
+}
+
+/* Загрузка */
+.loading {
+    text-align: center;
+    padding: 50px;
+    font-size: 1.2rem;
+}
+
+/* Мобильные контролы */
+.mobile-controls {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.zoom-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    font-size: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+.zoom-btn:active {
+    background: rgba(255,255,255,0.2);
+    transform: scale(0.95);
+}
+
+/* Кнопки действий в модалке */
+.action-buttons {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 10001;
+}
+
+.action-btn {
+    background: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    opacity: 0.3;
+}
+
+.action-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.like-btn {
+    background: rgba(255,0,0,0.7);
+}
+
+.like-btn.liked {
+    background: rgba(255,0,0,0.9);
+}
+
+.delete-btn {
+    background: rgba(255,0,0,0.7);
+}
+
+/* Адаптивность */
+@media (min-width: 768px) {
+    .mobile-controls {
+        display: flex;
+    }
+}
