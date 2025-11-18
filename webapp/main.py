@@ -1,8 +1,7 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles  # Импорт для статических файлов
-from bson import ObjectId, Binary
+from bson import ObjectId
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -30,7 +29,7 @@ except ImportError as e:
     print(f"❌ MongoDB не подключена: {e}")
     db = None
 
-# Модели Pydantic для запросов
+# Модели Pydantic для запросов (Pydantic v1 синтаксис)
 class LikeRequest(BaseModel):
     photo_id: str
     user_id: int
@@ -231,9 +230,6 @@ async def get_photo(photo_id: str):
             return Response(content=b"", media_type="image/jpeg")
         
         image_data = photo['image_data']
-        if isinstance(image_data, Binary):
-            image_data = image_data
-        
         return Response(content=image_data, media_type="image/jpeg")
         
     except Exception as e:
