@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 Graffiti Wall</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>🎨 Graffiti Wall</h1>
+        <p>Интерактивная галерея фотографий</p>
+        <div class="stats">
+            <div class="stat" id="total-photos">📸 Фото: 0</div>
+            <div class="stat" id="total-users">👥 Участники: 0</div>
+            <div class="stat" id="total-likes">❤️ Лайки: 0</div>
+        </div>
+    </div>
+    
+    <div class="wall-container" id="wall-container">
+        <div class="wall" id="wall"></div>
+    </div>
+    
+    <!-- Мобильные контролы -->
+    <div class="mobile-controls">
+        <button class="zoom-btn" onclick="zoomIn()" title="Приблизить">+</button>
+        <button class="zoom-btn" onclick="zoomOut()" title="Отдалить">-</button>
+        <button class="zoom-btn" onclick="resetZoom()" title="Сбросить зум" style="font-size:16px;">⟲</button>
+        <button class="zoom-btn" onclick="showFullWall()" title="Показать всю стену" style="font-size:14px;">🏞️</button>
+    </div>
+        
+    <div class="loading" id="loading">⏳ Загружаем галерею...</div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
