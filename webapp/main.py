@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Response, StaticFiles
+from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles  # Импортируем из starlette
 from bson import ObjectId
 from pydantic import BaseModel
 from datetime import datetime
@@ -49,9 +50,13 @@ async def root():
 async def webapp_page():
     """Главная страница приложения"""
     # Читаем HTML из файла
-    with open("static/index.html", "r", encoding="utf-8") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content)
+    try:
+        with open("static/index.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        # Fallback если файл не найден
+        return HTMLResponse(content="<h1>Static files not found</h1>")
 
 @app.get("/api/top_users")
 async def get_top_users():
